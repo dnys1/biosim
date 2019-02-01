@@ -18,11 +18,11 @@ classdef heat < handle
     end
     
     properties (Dependent)
-        Qan
-        Qsn
-        Qbr
-        Qc
-        Qe
+        Qan         % Atmospheric long-wave heat
+        Qsn         % Short-wave heat
+        Qbr         % Blackbody radiation
+        Qc          % Conduction/convection heat
+        Qe          % Evaporative heat
     end
     
     methods
@@ -33,16 +33,12 @@ classdef heat < handle
         end
         
         function Q = water(obj, Ts_C, Ta_C, Pv, qm, Qsn, wv, Aw)
-            if ~isempty(Ts_C) && ~isempty(Ta_C) && ~isempty(Pv) && ...
-                    ~isempty(qm) && ~isempty(Qsn) && ~isempty(wv) && ...
-                    ~isempty(Aw)
-                obj.Ta_C = Ta_C;
-                obj.Ts_C = Ts_C;
-                obj.Pv = Pv;
-                obj.Aw = Aw;
-                obj.qm = qm;
-                obj.wv = wv;
-            end
+            obj.Ta_C = Ta_C;
+            obj.Ts_C = Ts_C;
+            obj.Pv = Pv;
+            obj.Aw = Aw;
+            obj.qm = qm;
+            obj.wv = wv;
             Q = obj.Qan + Qsn - (obj.Qbr + obj.Qe + obj.Qc);
         end
         
@@ -64,20 +60,4 @@ classdef heat < handle
             Qe = L * obj.qm * 1000;
         end
     end
-    
-%     methods (Static)
-%         function Qan = Qan(Area, Ta, Pv, dt)
-%             Qan = sigma * Area * (Ta + 273.15).^4 * (A +  0.031 * sqrt(Pv/0.133322)) * (1 - 0.03) * dt;
-%         end
-%         
-%         function Qc = Qc(Area, Ts, Ta, wv, dt)
-%             hc = 10.45 - wv + 10.45 * sqrt(wv);
-%             Qc = hc * Area * (Ts - Ta) * dt;
-%         end
-%         
-%         function Qe = Qe(Ts_C, qm)
-%             L = refEQ.L(Ts_C);
-%             Qe = L * qm * 1000;
-%         end
-%     end
 end

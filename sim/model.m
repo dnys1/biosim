@@ -12,10 +12,12 @@ classdef model < handle
         Mv          % Water vapor mass (kg)
         RHmax       % Maximum indoor humidity
         wv          % Wind velocity (m/s)
+        dt          % Model time step (s)
         
         blocks      % Array of all block objects
         trackTa     % Air temperature monitoring array
-        trackTw     % Average water body temperature aray
+        trackTw     % Average water body temperature array
+        trackETo    % Reference evapotranspiration (mm/h)
         
         hour        % Tracks the hour of the day
         day         % Tracks the day since starting
@@ -34,7 +36,7 @@ classdef model < handle
         cv = 1.996;     % water vapor specific heat (kJ/kg-deg C)
         kWall = 0.001;  % thermal conductivity of building wall material (kW/m-K)
         sWall = 0.7;    % wall thickness (m)
-        dt = 60;        % Model time step (s)
+        
     end
     
     properties (Dependent)
@@ -56,7 +58,7 @@ classdef model < handle
     end
     
     methods
-        function obj = model(L, W, H, P, Ta, To, RH)
+        function obj = model(L, W, H, P, Ta, To, RH, dt)
             %MODEL Construct an instance of this class
             %   A   = Area of BioSim (m2)
             %   H   = Height of BioSim space (m)
@@ -78,6 +80,8 @@ classdef model < handle
                 obj.Ma = RHOa * obj.Volume;
                 obj.RHmax = RH;
                 obj.wv = 0;
+                
+                obj.dt = dt;
                 
                 obj.hour = 1; obj.day = 1;
                 obj.date = datetime('today');
@@ -192,113 +196,25 @@ classdef model < handle
         end
         
         function output = run(obj, hours)
-            if isempty(obj.H)
-                obj.setup;
-            end
-            
             for i = hours
-                %% Calculate the amount of heat exchange
-                Tw = [];
-                for j = 1:1:(3600/obj.dt)
-                    % Calculate amount of water released into air from
-                    % all water blocks
-                    dQ = 0; dQsn = 0; dQan = 0; dQe = 0; dQc = 0; dQbr = 0;
-                    dMv = 0;
-                    for w = obj.waterBlocks
-                        % Calculate the heat absorbed by water due to lighting
-                        % Valid for "daylight" hours (5AM - 8PM, for example)
-                        if mod(i,24) > 5 && mod(i,24) < 20
-                           Qsn = obj.heatperm2 * w.Aw * obj.dt; % (W/m^2) * m^2
-                        else
-                           Qsn = 0;
-                        end
-                        
-                        % Calculate saturation vapor pressure and density
-                        RHOvs = obj.Pvs / (obj.Rv * obj.Ta_K);
-                        
-                        % Evaporation coefficient (kg/m2-s)
-                        ae = (25 + 19*obj.wv) / 3600;
-                        % Hypothetical saturated vapor mass per total mass (kg/kg)
-                        % i.e. saturation humidity ratio
-                        x_s = RHOvs * obj.Volume / obj.Ma;
-                        % Actual (current) vapor mass per total mass (kg/kg)
-                        % i.e. humidity ratio
-                        x = obj.Mv / obj.Ma;
-                        % Amount of water vapor evaporated (kg/dt)
-                        dmv = w.Aw * (obj.RHmax*x_s - x) * ae * obj.dt;
-                        
-                        % Solve nonlinear equation for equilibrium temp. of water
-                        fun = @(T) obj.H.water(T, obj.Ta_C, obj.Pv, dmv, Qsn, obj.wv, w.Aw);
-                        [Ts_C, Q] = fzero(fun, w.Tw_C);
-                        
-                        % Calculate change in water temp based off surface
-                        % temp change
-                        ds = 0.001; % Surface depth = 1mm
-                        RHOs = refEQ.RHOw(Ts_C);
-                        Vs = w.Aw * ds;
-                        w.Tw_C = (w.RHOw*(w.Vw-Vs)*w.Tw_C + RHOs*Vs*Ts_C)/(w.RHOw*(w.Vw-Vs) + RHOs*Vs);
-                        
-                        % Update mass of water
-                        w.Mw = w.Mw - dmv;
-                        
-                        % Track water temp
-                        Tw = [Tw w.Tw_C];
-                        
-                        dQ = dQ + Q/1000;
-                        dQsn = dQsn + Qsn/1000;
-                        dQan = dQan + obj.H.Qan/1000;
-                        dQbr = dQbr + obj.H.Qbr/1000;
-                        dQe = dQe + obj.H.Qe/1000;
-                        dQc = dQc + obj.H.Qc/1000;
-                        dMv = dMv + dmv;
-                    end
-                    
-                    % Calculate heat exchange due to walls of BioSim
-                    qWall = (obj.kWall / obj.sWall) * (2*obj.Length*obj.Height + 2*obj.Width*obj.Height) * (obj.To_C - obj.Ta_C) * obj.dt;
-
-                    % Update temperature of air
-                    obj.Ta_C = (qWall+(dQbr+dQc+dQe-dQan))/(obj.Mv*obj.cv + obj.Ma*obj.ca) + obj.Ta_C;
-
-                    % Update mass of water vapor in air
-                    obj.Mv = obj.Mv + dMv;
-                    
-                    % Dehumidify to achieve RHmax
-                    % https://www.sylvane.com/quest-hi-e-dry-195-dehumidifier.html
-%                     if obj.RH > obj.RHmax
-%                         disp('Dehumidifying');
-%                         disp(obj.RH);
-%                         Pv0 = obj.Pvs * obj.RHmax;
-%                         RHOv0 = Pv0 / (obj.Rv * obj.Ta_K);
-%                         Mv0 = RHOv0 * obj.Volume;
-% 
-%                         % Calculate quantity of water removed
-%                         Md = obj.Mv - Mv0;
-%                         obj.Mv = Mv0;
-% 
-%                         % Calculate heat removed & update air temp
-%                         L = refEQ.L(obj.Ta_C);
-%                         obj.Ta_C = -L*Md/(obj.Mv*obj.cv + obj.Ma*obj.ca) + obj.Ta_C;
-%                     end
-                end
-                
-                obj.trackTa(i) = obj.Ta_C;
-                obj.trackTw(i) = mean(Tw);
-                obj.stepTime;
+                obj.step;
             end
             
             output.Ta = obj.trackTa;
             output.Tw = obj.trackTw;
+            output.ETo = obj.trackETo;
         end
         
         function output = step(obj)
         %STEP Run the model for one dt step
-        if isempty(obj.H)
-            obj.setup;
-        end
+            if isempty(obj.H)
+                obj.setup;
+            end
         
             %% Calculate the amount of heat exchange
             Tw = [];
-            for j = 1:1:(3600/obj.dt)
+            QQsn = 0;
+            for j = 1:1:(obj.dt*1)
                 % Calculate amount of water released into air from
                 % all water blocks
                 dQ = 0; dQsn = 0; dQan = 0; dQe = 0; dQc = 0; dQbr = 0;
@@ -351,6 +267,8 @@ classdef model < handle
                     dQc = dQc + obj.H.Qc/1000;
                     dMv = dMv + dmv;
                 end
+                % Add short-wave radiation to accumulator
+                QQsn = QQsn + dQsn;
 
                 % Calculate heat exchange due to walls of BioSim
                 qWall = (obj.kWall / obj.sWall) * (2*obj.Length*obj.Height + 2*obj.Width*obj.Height) * (obj.To_C - obj.Ta_C) * obj.dt;
@@ -362,12 +280,15 @@ classdef model < handle
                 obj.Mv = obj.Mv + dMv;
             end
             
-            obj.stepTime;
-            
+            ETo = refEQ.ETo(obj.Ta_C, QQsn, obj.wv, obj.P, obj.Pv);
+            obj.trackETo = [obj.trackETo ETo];
             obj.trackTa = [obj.trackTa obj.Ta_C];
             obj.trackTw = [obj.trackTw mean(Tw)];
             output.Ta = obj.trackTa;
             output.Tw = obj.trackTw;
+            output.ETo = obj.trackETo;
+            
+            obj.stepTime;
         end
     end
 end
