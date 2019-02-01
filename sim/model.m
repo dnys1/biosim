@@ -16,6 +16,13 @@ classdef model < handle
         blocks      % Array of all block objects
         trackTa     % Air temperature monitoring array
         trackTw     % Average water body temperature aray
+        
+        hour        % Tracks the hour of the day
+        day         % Tracks the day since starting
+        date        % Tracks the actual date
+        
+        H           % Heat equation handler
+        heatperm2   % Heat delivered per m2
     end
     
     properties (Constant)
@@ -71,6 +78,9 @@ classdef model < handle
                 obj.Ma = RHOa * obj.Volume;
                 obj.RHmax = RH;
                 obj.wv = 0;
+                
+                obj.hour = 1; obj.day = 1;
+                obj.date = datetime('today');
 
                 % Create empty (soil) array of blocks to initialize area
                 % Blocks are 1x1 soil blocks
@@ -80,8 +90,6 @@ classdef model < handle
                     end
                 end
                 obj.blocks = blocks;
-                
-                obj.trackTa = [];
             end
         end
         
@@ -144,10 +152,11 @@ classdef model < handle
             waterBlocks = unique(w);
         end
         
-        function output = run(obj, hours)
-            % TODO: Put lighting in separate object or area
-            H = heat(obj.dt);
+        function setup(obj)
+            % Create necessary handlers & variables
+            obj.H = heat(obj.dt);
             
+            % TODO: Put lighting in separate object or area
             % Lighting requirements for living space
             % https://www.engineeringtoolbox.com/light-level-rooms-d_708.html
             lumensperm2 = 1000;
@@ -156,7 +165,7 @@ classdef model < handle
             heatperbulb = 12; % (W)
             % No. of bulbs needed
             no_bulbs = ceil(lumensperm2 * obj.Area / lumensperbulb);
-            heatperm2 = no_bulbs * heatperbulb / obj.Area;
+            obj.heatperm2 = no_bulbs * heatperbulb / obj.Area;
             
             % Create a lake object
             w.x=1;
@@ -168,6 +177,23 @@ classdef model < handle
                 for j = w.y:1:(w.y+w.h-1)
                 obj.blocks(i, j).data = waterBody;
                 end
+            end
+        end
+        
+        function stepTime(obj)
+            %% TODO: Update to change based off dt
+            if obj.hour == 24
+                obj.hour = 0;
+                obj.day = obj.day + 1;
+            else
+                obj.hour = obj.hour + 1;
+            end
+            obj.date = obj.date + 1/24;
+        end
+        
+        function output = run(obj, hours)
+            if isempty(obj.H)
+                obj.setup;
             end
             
             for i = hours
@@ -182,7 +208,7 @@ classdef model < handle
                         % Calculate the heat absorbed by water due to lighting
                         % Valid for "daylight" hours (5AM - 8PM, for example)
                         if mod(i,24) > 5 && mod(i,24) < 20
-                           Qsn = heatperm2 * w.Aw * obj.dt; % (W/m^2) * m^2
+                           Qsn = obj.heatperm2 * w.Aw * obj.dt; % (W/m^2) * m^2
                         else
                            Qsn = 0;
                         end
@@ -202,7 +228,7 @@ classdef model < handle
                         dmv = w.Aw * (obj.RHmax*x_s - x) * ae * obj.dt;
                         
                         % Solve nonlinear equation for equilibrium temp. of water
-                        fun = @(T) H.water(T, obj.Ta_C, obj.Pv, dmv, Qsn, obj.wv, w.Aw);
+                        fun = @(T) obj.H.water(T, obj.Ta_C, obj.Pv, dmv, Qsn, obj.wv, w.Aw);
                         [Ts_C, Q] = fzero(fun, w.Tw_C);
                         
                         % Calculate change in water temp based off surface
@@ -220,10 +246,10 @@ classdef model < handle
                         
                         dQ = dQ + Q/1000;
                         dQsn = dQsn + Qsn/1000;
-                        dQan = dQan + H.Qan/1000;
-                        dQbr = dQbr + H.Qbr/1000;
-                        dQe = dQe + H.Qe/1000;
-                        dQc = dQc + H.Qc/1000;
+                        dQan = dQan + obj.H.Qan/1000;
+                        dQbr = dQbr + obj.H.Qbr/1000;
+                        dQe = dQe + obj.H.Qe/1000;
+                        dQc = dQc + obj.H.Qc/1000;
                         dMv = dMv + dmv;
                     end
                     
@@ -257,6 +283,7 @@ classdef model < handle
                 
                 obj.trackTa(i) = obj.Ta_C;
                 obj.trackTw(i) = mean(Tw);
+                obj.stepTime;
             end
             
             output.Ta = obj.trackTa;
@@ -265,7 +292,82 @@ classdef model < handle
         
         function output = step(obj)
         %STEP Run the model for one dt step
+        if isempty(obj.H)
+            obj.setup;
+        end
         
+            %% Calculate the amount of heat exchange
+            Tw = [];
+            for j = 1:1:(3600/obj.dt)
+                % Calculate amount of water released into air from
+                % all water blocks
+                dQ = 0; dQsn = 0; dQan = 0; dQe = 0; dQc = 0; dQbr = 0;
+                dMv = 0;
+                for w = obj.waterBlocks
+                    % Calculate the heat absorbed by water due to lighting
+                    % Valid for "daylight" hours (5AM - 8PM, for example)
+                    if obj.hour > 5 && obj.hour < 20
+                       Qsn = obj.heatperm2 * w.Aw * obj.dt; % (W/m^2) * m^2
+                    else
+                       Qsn = 0;
+                    end
+
+                    % Calculate saturation vapor pressure and density
+                    RHOvs = obj.Pvs / (obj.Rv * obj.Ta_K);
+
+                    % Evaporation coefficient (kg/m2-s)
+                    ae = (25 + 19*obj.wv) / 3600;
+                    % Hypothetical saturated vapor mass per total mass (kg/kg)
+                    % i.e. saturation humidity ratio
+                    x_s = RHOvs * obj.Volume / obj.Ma;
+                    % Actual (current) vapor mass per total mass (kg/kg)
+                    % i.e. humidity ratio
+                    x = obj.Mv / obj.Ma;
+                    % Amount of water vapor evaporated (kg/dt)
+                    dmv = w.Aw * (obj.RHmax*x_s - x) * ae * obj.dt;
+
+                    % Solve nonlinear equation for equilibrium temp. of water
+                    fun = @(T) obj.H.water(T, obj.Ta_C, obj.Pv, dmv, Qsn, obj.wv, w.Aw);
+                    [Ts_C, Q] = fzero(fun, w.Tw_C);
+
+                    % Calculate change in water temp based off surface
+                    % temp change
+                    ds = 0.001; % Surface depth = 1mm
+                    RHOs = refEQ.RHOw(Ts_C);
+                    Vs = w.Aw * ds;
+                    w.Tw_C = (w.RHOw*(w.Vw-Vs)*w.Tw_C + RHOs*Vs*Ts_C)/(w.RHOw*(w.Vw-Vs) + RHOs*Vs);
+
+                    % Update mass of water
+                    w.Mw = w.Mw - dmv;
+
+                    % Track water temp
+                    Tw = [Tw w.Tw_C];
+
+                    dQ = dQ + Q/1000;
+                    dQsn = dQsn + Qsn/1000;
+                    dQan = dQan + obj.H.Qan/1000;
+                    dQbr = dQbr + obj.H.Qbr/1000;
+                    dQe = dQe + obj.H.Qe/1000;
+                    dQc = dQc + obj.H.Qc/1000;
+                    dMv = dMv + dmv;
+                end
+
+                % Calculate heat exchange due to walls of BioSim
+                qWall = (obj.kWall / obj.sWall) * (2*obj.Length*obj.Height + 2*obj.Width*obj.Height) * (obj.To_C - obj.Ta_C) * obj.dt;
+
+                % Update temperature of air
+                obj.Ta_C = (qWall+(dQbr+dQc+dQe-dQan))/(obj.Mv*obj.cv + obj.Ma*obj.ca) + obj.Ta_C;
+
+                % Update mass of water vapor in air
+                obj.Mv = obj.Mv + dMv;
+            end
+            
+            obj.stepTime;
+            
+            obj.trackTa = [obj.trackTa obj.Ta_C];
+            obj.trackTw = [obj.trackTw mean(Tw)];
+            output.Ta = obj.trackTa;
+            output.Tw = obj.trackTw;
         end
     end
 end

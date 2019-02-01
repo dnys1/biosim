@@ -12,9 +12,11 @@ Ta = 20;
 To = 20;
 RH = 0.5;
 
-hours = 1:1:168;
+hours = 1:1:6;
 m = model(L, W, H, P, Ta, To, RH);
-out = m.run(hours);
+for i = hours
+    out = m.step;
+end
 
 plot(hours, out.Ta, hours, out.Tw);
 hold on
