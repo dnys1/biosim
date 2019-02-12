@@ -109,6 +109,10 @@ classdef refEQ
 
             ETo = max(ET_rad + ET_wind, 0); % mm/(m^2-h)
         end
+        
+        function randn = rand(x1,x2)
+            randn = x1 + rand * (x2-x1);
+        end
     end
 end
 

@@ -16,21 +16,22 @@ classdef crop < handle
         model       % A handle for the model
         
         % GENECROP Model variables
-        CPPL
-        CPPP
-        CPR
-        rrmort
-        rrsen
-        DVE
+        CPPL        % Partitioning coefficient for leaves
+        CPPP        % Partitioning coefficient for storage organs
+        CPR         % Partitioning coefficient for roots
+        rrsen       % Relative rate of leaf senescence
         
-        POOL        % 
-        LeafB       % Biomass accumulated in leaf (kg)
-        StorB       % Biomass accumulated in storage (kg)
-        StemB       % Biomass accumulated in stems (kg)
-        RootB       % Biomass accumulated in roots (kg)
-        MaxStemB
-        VTIL        % Vegetative tiller shoots
-        REPTIL      % Reproductive tiller shoots
+        POOL        % Total energy pool available from photosynthesis (g)
+        LeafB       % Biomass accumulated in leaf (g)
+        StorB       % Biomass accumulated in storage (g)
+        StemB       % Biomass accumulated in stems (g)
+        RootB       % Biomass accumulated in roots (g)
+        MaxStemB    % Maximum stem biomass (g)
+        
+        trackLeafB  % Array of leafB vals
+        trackStorB  % Array of storB vals
+        trackStemB  % Array of stemB vals
+        trackRootB  % Array of rootB vals
     end
     
     properties (Dependent)
@@ -41,17 +42,14 @@ classdef crop < handle
         
         DVS         % Development stage 0 (emergence) - 1 (flowering) - 2 (maturity)
         GDD         % Growing degree days (oC-d)
-        ETTot       % Total evapotranspiration until now (cm)
         ET          % Evapotranspiration at time t (now)
         RAD         % Radiation received for current timestep (MJ)
+        RUE         % Radiation use efficiency (randomized)
     end
     
     properties (Constant)
         % GENECROP Model parameters
-        RUE = 1.2       % Radiation use efficiency (g MJ^-1)
         k = 0.6         % coefficient of light extinction
-        STW = 20        % Dry biomass of one new tiller (g)
-        Maxtil = 900    % Maximum number of tillers
     end
     
     methods
@@ -95,9 +93,7 @@ classdef crop < handle
                 obj.CPPL = S.CPPL;
                 obj.CPPP = S.CPPP;
                 obj.CPR = S.CPR;
-                obj.rrmort = S.rrmort;
                 obj.rrsen = S.rrsen;
-                obj.DVE = S.DVE;
                 
                 % Initialize remaining model parameters
                 obj.POOL = 0;
@@ -106,11 +102,18 @@ classdef crop < handle
                 obj.StemB = 0;
                 obj.RootB = 0;
                 obj.MaxStemB = 6;
-                obj.VTIL = 0;
-                obj.REPTIL = 0;
             else
                 error('Invalid crop type')
             end
+        end
+        
+        function RAD = get.RAD(obj)
+            %RAD Returns the amount of radiation in MJ for this timestep
+            RAD = obj.model.gLight.Qperm2 * 60 * 1e-6 * obj.Ac;
+        end
+        
+        function RUE = get.RUE(obj)
+            RUE = refEQ.rand(0.7,1.2);
         end
         
         function GDD = get.GDD(obj)
@@ -137,11 +140,15 @@ classdef crop < handle
                return
            end
            SLA = [0 0.037; 1 0.018; 2 0.017];
-           LAI = obj.LeafB * interp1(SLA(:,1),SLA(:,2),obj.DVS); 
+           LAI = obj.LeafB / obj.Ac * interp1(SLA(:,1),SLA(:,2),obj.DVS); 
         end
         
         function ET = get.ET(obj)
             ET = obj.Kc * obj.model.ETo;
+        end
+        
+        function Y = get.Y(obj)
+            Y = obj.StorB / 1000;
         end
         
         function DVS = get.DVS(obj)
@@ -151,7 +158,7 @@ classdef crop < handle
                 if obj.GDD < obj.GDDflow
                     DVS = obj.GDD / obj.GDDflow;
                 else
-                    DVS = 1 + ((obj.GDD - obj.GDDflow)/(obj.GDDmat - obj.GDDflow));
+                    DVS = 1 + (obj.GDD - obj.GDDflow)/(obj.GDDmat - obj.GDDflow);
                 end
             else
                 % Set to -1 if crop has not reached emergence
@@ -162,64 +169,73 @@ classdef crop < handle
         function step(obj)
             % Only continue if plant has emerged and not reached maturity
             if obj.DVS == -1 || obj.DVS > 2
+                obj.trackLeafB = [obj.trackLeafB obj.LeafB];
+                obj.trackStemB = [obj.trackStemB obj.StemB];
+                obj.trackRootB = [obj.trackRootB obj.RootB];
+                obj.trackStorB = [obj.trackStorB obj.StorB];
                 return
             end
             
-            dt = 1/obj.model.dt; % Define separate dt var for calculations
+            % Some biomass needs to be established upon emergence
+            % before GENECROP will work
+            if obj.LeafB == 0
+                obj.LeafB = 2*obj.Ac;
+                obj.StemB = 1*obj.Ac;
+                obj.RootB = 1*obj.Ac;
+                obj.StorB = 0;
+            end
+            
+            % Simulation run hourly whereas variables (except RG)
+            % are based off daily parameters
+            dt = 1/24;
             
             % Interpolate necessary variables from model parameters
             CPPLt = interp1(obj.CPPL(:,1),obj.CPPL(:,2),obj.DVS);
             CPPPt = interp1(obj.CPPP(:,1),obj.CPPP(:,2),obj.DVS);
             CPRt = interp1(obj.CPR(:,1),obj.CPR(:,2),obj.DVS);
-            rrmortt = interp1(obj.rrmort(:,1),obj.rrmort(:,2),obj.DVS);
             rrsent = interp1(obj.rrsen(:,1),obj.rrsen(:,2),obj.DVS);
-            DVEt = interp1(obj.DVE(:,1),obj.DVE(:,2),obj.DVS);
             
-            % Calculate coefficients
+            % Calculate coefficients of partitioning
             CPL = CPPLt * (1-CPRt);
             CPP = CPPPt * (1-CPRt);
             CPS = (1-CPL-CPP)*(1-CPRt);
             
             % Calculate partitioning of energy
-            PartL   = CPL*obj.POOL;
-            PartS   = CPS*obj.POOL;
-            PartSO  = CPP*obj.POOL;
-            PartR   = CPRt*obj.POOL;
-            PartLS  = PartL+PartS;
+            PartL   = CPL*obj.POOL;     % Rate of partitioning of assimilate towards leaves (g hr^-1)
+            PartS   = CPS*obj.POOL;     % Rate of partitioning of assimilate towards stems (g hr^-1)
+            PartSO  = CPP*obj.POOL;     % Rate of partitioning of assimilate towards storage organs (g hr^-1)
+            PartR   = CPRt*obj.POOL;    % Rate of partitioning of assimilate towards roots (g hr^-1)
             
-            % Calculate the rate of growth based off ET
+            % Calculate the rate of growth based off ET (g)
             RG = obj.RAD*obj.RUE*(1-exp(-obj.k*obj.LAI));
             
-            % Caculate the amount of assimilates available for plant growth
-            obj.POOL = obj.POOL + (RG-PartS-PartL-PartSO-PartR)*dt;
-            
-            % Caclulate production and death of tillers
-            Rmrtv = rrmortt*obj.VTIL;       % Rate of mortality of vegetative tillers
-            Rmortr = rrmortt*obj.REPTIL;    % Rate of mortality of reproductive tillers
-            Rmat = rrmat*obj.VTIL;          % Number of tillers shifting from veg -> rep
-            Rtil = PartLS*obj.STW*(1-(obj.VTIL/obj.Maxtil))*DVEt; % Rate of tiller production
-            
-            obj.REPTIL = obj.REPTIL + (Rmat-Rmortr)*dt;
-            obj.VTIL = obj.VTIL + (Rtil-Rmat-Rmrtv)*dt;
+            % Caculate the amount of assimilates available (g)
+            obj.POOL = obj.POOL + (RG-PartS-PartL-PartSO-PartR);
             
             % Calculate accumulation of biomass in different parts
             % Stems
-            rmaxstemb = PartLS;
-            obj.MaxStemB = obj.MaxStemB + rmaxstemb*dt;
+            rmaxstemb = PartS;
+            obj.MaxStemB = obj.MaxStemB + rmaxstemb;
             ddist = 0.005*obj.MaxStemB;
+            % Translocation from stems to storage organs (g/day)
             if obj.DVS > 1
                 RTransloc = ddist;
             else
                 RTransloc = 0;
             end
-            obj.StemB = obj.StemB + (PartS-RTransloc)*dt;
+            obj.StemB = obj.StemB + (PartS-RTransloc*dt);
             % Storage
-            obj.StorB = obj.StorB + (PartSO+RTransloc)*dt;
+            obj.StorB = obj.StorB + (PartSO+RTransloc*dt);
             % Roots
-            obj.RootB = obj.RootB + PartR*dt;
+            obj.RootB = obj.RootB + PartR;
             % Leaves
             RSenL = rrsent*obj.LeafB;
-            obj.LeafB = obj.LeafB + (PartL-RSenL)*dt;
+            obj.LeafB = obj.LeafB + (PartL-RSenL*dt);
+            
+            obj.trackLeafB = [obj.trackLeafB obj.LeafB];
+            obj.trackStemB = [obj.trackStemB obj.StemB];
+            obj.trackRootB = [obj.trackRootB obj.RootB];
+            obj.trackStorB = [obj.trackStorB obj.StorB];
         end
     end
 end

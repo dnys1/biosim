@@ -15,16 +15,18 @@ k = 0.6;            % coefficient of light extinction
 Maxtil = 900;       % maximum number of tillers (tillers m^-2)
 RAD = 17;           % MJ m^-2 d^-1
 RRMAT = 0.3;
-RUE = 1.2;          % Radiation use efficiency (g MJ^-1)
+RUE = 0.7;          % Radiation use efficiency (g MJ^-1)
 STW = 20;           % Dry biomass of one new tiller (g)
 TBASE = 8;
 TFLOW = 1500;
 TMAT = 2000;
-TMAX = 30;
-TMIN = 24;
+TMAX = 20;
+TMIN = 19;
 Totil = VTIL+REPTIL;
 DVS = 0;
 dt = 1;
+
+SLA = [0 0.037; 1.0 0.018; 2.0 0.017];
 
 i=0;
 while DVS < 2
@@ -61,7 +63,7 @@ while DVS < 2
     RSenL = rrsent*LeafB;
     LeafB = LeafB + (PartL-RSenL)*dt;
     
-    rmaxstemb = PartLS;
+    rmaxstemb = PartS;
     MaxStemb = MaxStemb + rmaxstemb*dt;
     ddist = 0.005*MaxStemb;
     
@@ -100,6 +102,7 @@ while DVS < 2
 end
 
 i=1:1:i;
+figure;
 plot(i,trackRootB,i,trackStorB,i,trackStemB,i,trackLeafB);
 hold on
 legend('RootB','StorB','StemB','LeafB');

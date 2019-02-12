@@ -13,7 +13,7 @@ To = 20;
 RH = 0.5;
 dt = time.MINUTE;
 
-hours = 1:1:24;
+hours = 1:1:168*15;
 m = model(L, W, H, P, Ta, To, RH, dt);
 out = m.run(hours);
 
@@ -22,7 +22,8 @@ hold on
 legend('Ta', 'Tw');
 hold off
 figure;
-plot(hours, out.ETo);
+c=m.cropBlocks(1);
+plot(hours,c.trackLeafB/1000,hours,c.trackStorB/1000,hours,c.trackStemB/1000,hours,c.trackRootB/1000);
 hold on
-legend('ETo');
+legend('LeafB','StorB','StemB','RootB');
 hold off

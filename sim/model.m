@@ -25,6 +25,12 @@ classdef model < handle
         
         H           % Heat equation handler
         heatperm2   % Heat delivered per m2
+        QQsn        % Total heat delivered for this timestep (kW)
+        lLight      % lightObj for living space
+        gLight      % lightObj for growing space
+        
+        waterBlocks % Array of all water blocks
+        cropBlocks  % Array of all crop blocks
     end
     
     properties (Constant)
@@ -36,7 +42,6 @@ classdef model < handle
         cv = 1.996;     % water vapor specific heat (kJ/kg-deg C)
         kWall = 0.001;  % thermal conductivity of building wall material (kW/m-K)
         sWall = 0.7;    % wall thickness (m)
-        
     end
     
     properties (Dependent)
@@ -53,8 +58,7 @@ classdef model < handle
         Ta_K        % Air temperature (K)
         To_K        % Outside air temperature (K)
         RH          % Current relative humidity
-        
-        waterBlocks % Array of all water blocks
+        ETo         % Reference evapotranspiration (mm/hr)
     end
     
     methods
@@ -94,6 +98,8 @@ classdef model < handle
                     end
                 end
                 obj.blocks = blocks;
+                
+                obj.setup;
             end
         end
         
@@ -149,27 +155,29 @@ classdef model < handle
             To_K = obj.To_C + 273.15;
         end
         
-        function waterBlocks = get.waterBlocks(obj)
-            c = arrayfun(@(b) class(b.data), obj.blocks, 'UniformOutput', false);
-            mask = strcmp(c, 'water');
-            w = arrayfun(@(b) b.data, obj.blocks(mask));
-            waterBlocks = unique(w);
+        function ETo = get.ETo(obj)
+            ETo = refEQ.ETo(obj.Ta_C, obj.QQsn, obj.wv, obj.P, obj.Pv);
         end
+        
+        % These functions take too long to run!
+        
+%         function waterBlocks = get.waterBlocks(obj)
+%             c = arrayfun(@(b) class(b.data), obj.blocks, 'UniformOutput', false);
+%             mask = strcmp(c, 'water');
+%             w = arrayfun(@(b) b.data, obj.blocks(mask));
+%             waterBlocks = unique(w);
+%         end
+%         
+%         function cropBlocks = get.cropBlocks(obj)
+%             f = arrayfun(@(b) class(b.data), obj.blocks, 'UniformOutput', false);
+%             mask = strcmp(f, 'crop');
+%             c = arrayfun(@(b) b.data, obj.blocks(mask));
+%             cropBlocks = unique(c);
+%         end
         
         function setup(obj)
             % Create necessary handlers & variables
             obj.H = heat(obj.dt);
-            
-            % TODO: Put lighting in separate object or area
-            % Lighting requirements for living space
-            % https://www.engineeringtoolbox.com/light-level-rooms-d_708.html
-            lumensperm2 = 1000;
-            % Bulbs used: http://www.alconlighting.com/specsheets/alcon/13124%20-%20Sinch.pdf
-            lumensperbulb = 1000;
-            heatperbulb = 12; % (W)
-            % No. of bulbs needed
-            no_bulbs = ceil(lumensperm2 * obj.Area / lumensperbulb);
-            obj.heatperm2 = no_bulbs * heatperbulb / obj.Area;
             
             % Create a lake object
             w.x=1;
@@ -182,6 +190,24 @@ classdef model < handle
                 obj.blocks(i, j).data = waterBody;
                 end
             end
+            obj.waterBlocks = [obj.waterBlocks waterBody];
+            
+            % Create a crop object
+            c.x=4;
+            c.w=7;
+            c.y=1;
+            c.h=10;
+            wheatCrop = crop(obj,cropType.Wheat,c.w*c.h);
+            for i = c.x:1:(c.x+c.w-1)
+                for j = c.y:1:(c.y+c.h-1)
+                    obj.blocks(i, j).data = wheatCrop;
+                end
+            end
+            obj.cropBlocks = [obj.cropBlocks wheatCrop];
+            
+            % Create lighting objects
+            obj.gLight = lightObj(c.w*c.h, 640, 2, 1, obj, 6, 23, 'Growing light');
+            obj.lLight = lightObj(obj.Area-obj.gLight.A, 12, 1000, 1000, obj, 6, 23, 'Living area light');
         end
         
         function stepTime(obj)
@@ -207,13 +233,9 @@ classdef model < handle
         
         function output = step(obj)
         %STEP Run the model for one dt step
-            if isempty(obj.H)
-                obj.setup;
-            end
-        
             %% Calculate the amount of heat exchange
             Tw = [];
-            QQsn = 0;
+            obj.QQsn = 0;
             for j = 1:1:(obj.dt*1)
                 % Calculate amount of water released into air from
                 % all water blocks
@@ -222,11 +244,7 @@ classdef model < handle
                 for w = obj.waterBlocks
                     % Calculate the heat absorbed by water due to lighting
                     % Valid for "daylight" hours (5AM - 8PM, for example)
-                    if obj.hour > 5 && obj.hour < 20
-                       Qsn = obj.heatperm2 * w.Aw * obj.dt; % (W/m^2) * m^2
-                    else
-                       Qsn = 0;
-                    end
+                    Qsn = obj.lLight.Qperm2 * w.Aw;
 
                     % Calculate saturation vapor pressure and density
                     RHOvs = obj.Pvs / (obj.Rv * obj.Ta_K);
@@ -248,7 +266,7 @@ classdef model < handle
 
                     % Calculate change in water temp based off surface
                     % temp change
-                    ds = 0.001; % Surface depth = 1mm
+                    ds = 0.0001; % Surface depth = 0.1mm
                     RHOs = refEQ.RHOw(Ts_C);
                     Vs = w.Aw * ds;
                     w.Tw_C = (w.RHOw*(w.Vw-Vs)*w.Tw_C + RHOs*Vs*Ts_C)/(w.RHOw*(w.Vw-Vs) + RHOs*Vs);
@@ -268,7 +286,7 @@ classdef model < handle
                     dMv = dMv + dmv;
                 end
                 % Add short-wave radiation to accumulator
-                QQsn = QQsn + dQsn;
+                obj.QQsn = obj.QQsn + dQsn;
 
                 % Calculate heat exchange due to walls of BioSim
                 qWall = (obj.kWall / obj.sWall) * (2*obj.Length*obj.Height + 2*obj.Width*obj.Height) * (obj.To_C - obj.Ta_C) * obj.dt;
@@ -280,13 +298,14 @@ classdef model < handle
                 obj.Mv = obj.Mv + dMv;
             end
             
-            ETo = refEQ.ETo(obj.Ta_C, QQsn, obj.wv, obj.P, obj.Pv);
-            obj.trackETo = [obj.trackETo ETo];
+            for c = obj.cropBlocks
+                c.step;
+            end
+            
             obj.trackTa = [obj.trackTa obj.Ta_C];
             obj.trackTw = [obj.trackTw mean(Tw)];
             output.Ta = obj.trackTa;
             output.Tw = obj.trackTw;
-            output.ETo = obj.trackETo;
             
             obj.stepTime;
         end
