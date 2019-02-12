@@ -9,7 +9,7 @@ classdef model < handle
         Ta_C        % Air temperature (C)
         To_C        % Outside temperature (C)
         Ma          % Dry air mass (kg)
-        Mv          % Water vapor mass (kg)
+        Mv          % Vapor mass (kg)
         RHmax       % Maximum indoor humidity
         wv          % Wind velocity (m/s)
         dt          % Model time step (s)
@@ -28,6 +28,8 @@ classdef model < handle
         QQsn        % Total heat delivered for this timestep (kW)
         lLight      % lightObj for living space
         gLight      % lightObj for growing space
+        
+        W           % Water handler
         
         waterBlocks % Array of all water blocks
         cropBlocks  % Array of all crop blocks
@@ -78,10 +80,10 @@ classdef model < handle
                 obj.Width = W;
                 obj.Height = H;
                 obj.Ta_C = Ta;
-                obj.To_C = To;
-                obj.Mv = 0; 
+                obj.To_C = To; 
                 RHOa = P / ((Ta+273.15) * obj.Ra);
                 obj.Ma = RHOa * obj.Volume;
+                obj.Mv = 0;
                 obj.RHmax = RH;
                 obj.wv = 0;
                 
@@ -124,7 +126,7 @@ classdef model < handle
         end
         
         function RHOv = get.RHOv(obj)
-            RHOv = obj.Mv / obj.Volume;
+            RHOv = obj.W.Mvapor / obj.Volume;
         end
         
         function P = get.P(obj)
@@ -176,21 +178,19 @@ classdef model < handle
 %         end
         
         function setup(obj)
-            % Create necessary handlers & variables
-            obj.H = heat(obj.dt);
-            
             % Create a lake object
             w.x=1;
             w.y=1;
             w.w=3;
             w.h=10;
-            waterBody = water(w.w*w.h, 1, 20);
+            w.d=1;
+            wb = waterBody(w.w*w.h, w.d, 20);
             for i = w.x:1:(w.x+w.w-1)
                 for j = w.y:1:(w.y+w.h-1)
-                obj.blocks(i, j).data = waterBody;
+                obj.blocks(i, j).data = wb;
                 end
             end
-            obj.waterBlocks = [obj.waterBlocks waterBody];
+            obj.waterBlocks = [obj.waterBlocks wb];
             
             % Create a crop object
             c.x=4;
@@ -208,6 +208,10 @@ classdef model < handle
             % Create lighting objects
             obj.gLight = lightObj(c.w*c.h, 640, 2, 1, obj, 6, 23, 'Growing light');
             obj.lLight = lightObj(obj.Area-obj.gLight.A, 12, 1000, 1000, obj, 6, 23, 'Living area light');
+        
+            % Create necessary handlers & variables
+            obj.H = heat(obj.dt);
+            obj.W = water(1000, w.w*w.h*w.d*1000);
         end
         
         function stepTime(obj)
@@ -244,7 +248,7 @@ classdef model < handle
                 for w = obj.waterBlocks
                     % Calculate the heat absorbed by water due to lighting
                     % Valid for "daylight" hours (5AM - 8PM, for example)
-                    Qsn = obj.lLight.Qperm2 * w.Aw;
+                    Qsn = obj.lLight.Q(obj.dt) * w.Aw;
 
                     % Calculate saturation vapor pressure and density
                     RHOvs = obj.Pvs / (obj.Rv * obj.Ta_K);
@@ -296,11 +300,20 @@ classdef model < handle
 
                 % Update mass of water vapor in air
                 obj.Mv = obj.Mv + dMv;
+                obj.W.Mvapor = obj.W.Mvapor + dMv;
+                obj.W.Mbody = obj.W.Mbody - dMv;
             end
             
+            I = 0;
             for c = obj.cropBlocks
+                % Notice how the timestep is an hour for crops unlike water
                 c.step;
+                
+                % Calculate necessary irrigation based off ET
+                I = I + c.ET;
             end
+            
+            % TODO: Calculate soil water conduct and EC values
             
             obj.trackTa = [obj.trackTa obj.Ta_C];
             obj.trackTw = [obj.trackTw mean(Tw)];

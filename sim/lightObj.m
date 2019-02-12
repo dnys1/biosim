@@ -23,7 +23,6 @@ classdef lightObj < handle
     end
     
     properties (Dependent)
-        Q       % Current heat output (W/hr)
         Qperm2  % Heat per m2 (W/m2)
     end
     
@@ -43,9 +42,13 @@ classdef lightObj < handle
             obj.no_bulbs = ceil(Lmax * A / L);
         end
         
+        function Q = Q(obj, dt)
+            Q = obj.Qperm2 * (3600/dt);
+        end
+        
         function Qperm2 = get.Qperm2(obj)
             if obj.model.hour >= obj.onT && obj.model.hour <= obj.offT
-                Qperm2 = obj.no_bulbs * obj.W / obj.A * obj.model.dt;
+                Qperm2 = obj.no_bulbs * obj.W / obj.A;
             else
                 Qperm2 = 0;
             end

@@ -108,8 +108,8 @@ classdef crop < handle
         end
         
         function RAD = get.RAD(obj)
-            %RAD Returns the amount of radiation in MJ for this timestep
-            RAD = obj.model.gLight.Qperm2 * 60 * 1e-6 * obj.Ac;
+            %RAD Returns the amount of radiation in MJ for this hour
+            RAD = obj.model.gLight.Q(time.HOUR) * 1e-6 * obj.Ac;
         end
         
         function RUE = get.RUE(obj)

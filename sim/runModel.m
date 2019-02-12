@@ -13,7 +13,7 @@ To = 20;
 RH = 0.5;
 dt = time.MINUTE;
 
-hours = 1:1:168*15;
+hours = 1:1:168*2;
 m = model(L, W, H, P, Ta, To, RH, dt);
 out = m.run(hours);
 
