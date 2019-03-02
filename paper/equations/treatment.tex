@@ -1,0 +1,127 @@
+\newpage
+\section{Water Treatment}
+\subsection{Sedimentation}
+To model the sedimentation of particles in the pre-treatment basin, a simple set of equations is used \cite{principles}. To model the settling velocity of particles:
+\begin{align}
+    v_s &= \frac{g(\rho_p - \rho_w)d_p^2}{18\mu} & \text{Re $< 2$} \;\; \text{(laminar flow)} \\
+    v_s &= \left[ \frac{g(\rho_p - \rho_w)d_p^{1.6}}{13.9\rho_w^{0.4} \mu^{0.6}} \right]^{1/1.4} & \text{$2 \leq$ Re $\leq 500$} \;\; \text{(transition flow)}
+\end{align}
+where
+\begin{equation}
+    \text{Re} = \frac{\rho_w v_s d_p}{\mu} = \frac{v_s d_p}{\nu}
+\end{equation}
+and
+\begin{conditions*}
+    v_s & Settling velocity of the particle (m/s) \\
+    g & Acceleration due to gravity, 9.81 m/s$^2$ \\
+    \rho_p & Density of the particle (kg/m$^3$) \\
+    \rho_w & Density of water (kg/m$^3$) \\
+    C_d & Drag coefficient, unitless \\
+    d_p & Diameter of particle (m) \\
+    \text{Re} & Reynolds number, dimensionless \\
+    \mu & Dynamic viscosity (N$\cdot$s/m$^2$) \\
+    \nu & Kinematic viscosity (m$^2$/s)
+\end{conditions*}
+Based off the particle velocity and properties of the water, the sedimentation basin dimensions can be calculated so that all particles with a diameter greater than $D$ (i.e. $d_p \geq D$) will be fully removed. To do so, the following equation is used:
+\begin{equation}
+    v_D = v_c = \frac{h_0}{\tau} = \frac{h_0Q}{h_0A} = \frac{Q}{A} \implies A = \frac{Q}{v_D}
+\end{equation}
+where 
+\begin{conditions*}
+    v_D & Settling velocity of particle with diameter $D$ (m/s) \\
+    v_c & Critical velocity such that particle at surface of inlet is removed just before outlet (m/s) \\
+    h_0 & Height of the sedimentation basin (m) \\
+    \tau & Hydraulic retention time in basin (s) \\
+    Q & Sedimentation basin loading rate (m$^3$/s) \\
+    A & Sedimentation basin area (m$^2$)
+\end{conditions*}
+Once the area is calculated, the length, width, and depth can be determined using a preferential L:W ratio of 5:1 and a preferential depth of 4 m \cite{principles}.\\\\
+The fraction of particles removed for a specific diameter less than $D$, the following equation can be used:
+\begin{equation}
+    \text{Fraction of particles removed} = \frac{v_s}{v_D}\,(v_s<v_D)
+\end{equation}
+\subsection{Wetlands Treatment}
+\subsubsection{Green-Ampt Modeling}
+The Green-Ampt equation \cite{green_ampt} is used to model infiltration into a vertical constructed wetland. For a one-layer wetland, the following equation is used to calculate the time to saturate the wetland with or without ponding at the surface\footnote{Note: For consistency, $\Psi < 0$ and $h_0 \geq 0$. Thus, $\Delta h$ will always be $\geq 0$.}.
+\begin{gather}
+\label{eq:t_1}
+    t_1=\frac{\theta_s - \theta_i}{K_s}\left[z_1 - \Delta h \ln{\left(1+\frac{z_1}{\Delta h}\right)}\right] \\
+\label{eq:delta_h}
+    \Delta h = h_0 - \Psi_f \\ 
+\label{eq:theta_i}
+    \theta_i \approx \theta_{fc} = \phi\left(\frac{|\Psi_{ae}|}{340}\right)^\frac{1}{b} \\
+\label{eq:Psi_f}
+    |\Psi_f| \approx \frac{|\Psi_{ae}|}{2}
+\end{gather}
+where
+\begin{conditions*}
+    t_1 & Time to saturate one-layer wetland (hr) \\
+    \theta_s & Saturated water content (= to porosity $\phi$) \\
+    \theta_i & Initial water content\footnote{Equation for soil field capacity is used to represent a "dry" soil after first wetting. $\theta_i$ can be set to 0 for first wetting.} \\
+    \theta_{fc} & Soil field capacity, i.e. the water content held against gravity\footnote{Derived from \cite{garcia_7}.} \\
+    K_s & Saturated hydraulic conductivity (m hr$^{-1}$) \\
+    z_1 & Depth of the wetland basin (m) \\
+    \Delta h & Pressure head difference (m) \\
+    \Psi_f & Suction head of the wetting front (m)\footnote{This approximation is established in \cite{green_ampt}.} \\
+    \phi & Porosity of the material
+\end{conditions*}
+For a two-layer system, the total time $t$ is calculated using the following equation \cite{green_ampt}:
+\begin{equation}
+\label{eq:t_2}
+    t = t_1 + \frac{\theta_{s,2}-\theta_{i,2}}{K_{s,2}}
+    \left[ z-z_1+\left(\frac{z_1K_{s,2}}{K_{s,1}}-z_1-\Delta h\right)\ln{\left(\frac{z+\Delta h}{z_1+\Delta h}\right)}\right]
+\end{equation}
+where 
+\begin{equation*}
+    \Delta_h = h_0 - \Psi_{f,2}
+\end{equation*}
+and values for $t_1$, $\theta_i$, and $\Psi_f$ are calculated using \eqref{eq:t_1}-\eqref{eq:Psi_f}.
+\subsection{Treatment Kinetics}
+Using $t$ as an estimate for hydraulic residence time (HRT), the system can be modeled as an ideal plug-flow reactor for modeling degradation of COD, BOD, TSS, NH$_4$, and TP using rate constants derived from \cite{pilot} and the following equation:
+\begin{equation}
+    \ln{\left(\frac{C}{C_0}\right)} = -k_V t \; \text{ or } \; C = C_0 e^{-k_V t}
+\end{equation}
+where
+\begin{conditions*}
+    C & Concentration at outlet (mg/L) \\
+    C_0 & Concentration at inlet (mg/L) \\
+    k_V & Volumetric rate constant (hr$^{-1}$) \\
+    t & Estimated HRT given by \eqref{eq:t_1} or \eqref{eq:t_2}
+\end{conditions*}
+Values for $k_V$ are summarized below (Table \ref{tab:kV}) for a wetland packed with 5-10 mm gravel and planted with common reed plants (\textit{Phragmites australis}).
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{c|c}
+    \textbf{Pollutant} & \textbf{$k_V$ (hr$^{-1}$)} \\
+    \hline
+    BOD & 0.153 \\
+    COD & 0.110 \\
+    TSS & 0.108 \\
+    NH$_4$ & 0.028 \\
+    TP & 0.017
+    \end{tabular}
+    \caption{$k_V$ rate constants from \cite{pilot}}
+    \label{tab:kV}
+\end{table}
+\subsection{Assumptions}
+The main assumptions for the treatment wetlands are:
+\begin{itemize}
+    \item The assumptions of the Green-Ampt equation including a sharp wetting front and complete saturation of the wetted area.
+    \item The wetland behaves like an ideal plug-flow reactor.
+    \item The wetlands are packed with 5-10 mm gravel and planted with common reed at approximately 70 units per m$^2$.
+    \item Particle size distribution of raw wastewater follows that of \cite{particle_size_dist} (Table \ref{tab:particle_size_dist}).
+\end{itemize}
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{l|l}
+    Particle fraction ($\mu$m) & Prevalence in wastewater (\%)  \\
+    \hline
+    $d_p \leq$ 12 & 26 \\
+    $12 < d_p \leq 63$ & 27 \\
+    $63 < d_p \leq 1000$ & 33 \\
+    $d_p > 1000$ & 14
+    \end{tabular}
+    \caption{Caption}
+    \label{tab:particle_size_dist}
+\end{table}
+In reality, none of the assumptions above would likely hold true and thus, this is a heavily idealized system used to model a crude approximation of treatment quality and hydraulic characteristics.

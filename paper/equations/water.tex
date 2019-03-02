@@ -1,0 +1,21 @@
+\newpage
+\appendix
+\section{Water Properties} \label{water_properties}
+The following equations are used to estimate the properties of water.
+\subsection{Saturation vapor pressure ($e_s$)}
+\subsection{Water density ($\rho_w$)}
+\subsection{Latent heat of evaporation ($L$)}
+\begin{multline}
+\label{eq:latent_heat}
+    L \approx 2362\times(-6.178\times10^{-15}\,T_{\text{air}}^6 +
+        8.001\times10^{-12}\,T_{\text{air}}^5 + \\
+        4.930\times10^{-9}\,T_{\text{air}}^4 +
+        5.441\times10^{-7}\,T_{\text{air}}^3 + \\
+        4.451\times10^{-5}\,T_{\text{air}}^2 -
+        0.562\,T_{\text{air}}+1093.2)
+\end{multline}
+where
+\begin{conditions*}
+    L & Latent heat of evaporation (J/kg) \\
+    T_{\text{air}} & Air temperature (\degree C)
+\end{conditions*}
