@@ -205,6 +205,7 @@ classdef crop < handle
             PartS   = CPS*obj.POOL;     % Rate of partitioning of assimilate towards stems (g hr^-1)
             PartSO  = CPP*obj.POOL;     % Rate of partitioning of assimilate towards storage organs (g hr^-1)
             PartR   = CPRt*obj.POOL;    % Rate of partitioning of assimilate towards roots (g hr^-1)
+            PartLS  = PartL + PartS;
             
             % Calculate the rate of growth based off ET (g)
             RG = obj.RAD*obj.RUE*(1-exp(-obj.k*obj.LAI));
@@ -214,7 +215,7 @@ classdef crop < handle
             
             % Calculate accumulation of biomass in different parts
             % Stems
-            rmaxstemb = PartS;
+            rmaxstemb = PartLS;
             obj.MaxStemB = obj.MaxStemB + rmaxstemb;
             ddist = 0.005*obj.MaxStemB;
             % Translocation from stems to storage organs (g/day)

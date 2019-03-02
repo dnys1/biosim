@@ -48,7 +48,7 @@ classdef refEQ
         function GDD = GDD(crop, trackTa)
            %GDD Calculate growing degree days(GDD)
            % https://en.wikipedia.org/wiki/Growing_degree-day
-           T = trackTa - crop.Tbase;
+           T = min(trackTa, crop.Tcutoff) - crop.Tbase;
            T = T(T>0);
            GDD = max(trapz(T) / 24, 0);
         end
