@@ -31,6 +31,13 @@ classdef refEQ
             L = (-0.000000000000006178*Tw_C.^6+0.000000000008001366*Tw_C.^5-0.000000004930049019*Tw_C.^4+0.000000544072948524*Tw_C.^3-0.000044511189869516*Tw_C.^2-0.56229260095658*Tw_C+1093.20841244749)*2.326;
         end
         
+        function mu = mu(Tw_C)
+            %mu Returns the dynamic viscosity of water over the range
+            %   0 < T < 100 degC
+            Tw_K = Tw_C + 273.15;
+            mu = 10^-3 * exp(-3.7188+578.919/(Tw_K-137.546));
+        end
+        
         function Td_K = Td_K(Pv)
             %Td_K Returns the dew point temperature given the vapor pressure
             %

@@ -5,17 +5,22 @@ classdef wetland1 < handle
     properties
         A           % Wetland area (m2)
         z           % Wetland height (m)
+        Q           % Volumetric loading rate (m3/d)
         q           % Hydraulic loading rate (m/s)
         model       % Main model reference
     end
     
     properties (Dependent)
-        t           % Estimated Green-Ampt HRT (s)
+        Ks          % Saturated hydraulic conductivity (m/s)
+        t           % Hydraulic residence time (hr)
+        tp          % Estimated Green-Ampt time to ponding (s)
         f           % Estimated Green-Ampt infiltration rate (m/s)
         F           % Estimated Green-Ampt wetted front (m)
+        hL          % Clean head loss from TSS loading (m)
         psi_f       % Wetting front suction head (m)
         NH3_0       % Initial un-ionized ammonia (mg/L)
         NH4_0       % Initial ionized ammonia (mg/L)
+        TSS         % Effluent TSS concentration (mg/L)
     end
     
     properties (Constant)
@@ -24,7 +29,6 @@ classdef wetland1 < handle
         theta_r=0       % Residual water content
         psi_ae=-1/44    % Air-entry suction head (m)
         lambda=0.18     % Fitted soil-water parameter
-        Ks=0.2          % Saturated hydraulic conductivity (m/s)
         kV_COD=2.64/24  % Volumetric rate constant for COD (hr^-1)
         kV_BOD=3.68/24  % Volumetric rate constant for BOD (hr^-1)
         kV_TSS=2.59/24  % Volumetric rate constant for TSS (hr^-1)
@@ -35,22 +39,30 @@ classdef wetland1 < handle
         kA_TSS=0.19/24  % Areal rate constant for TSS (m/hr)
         kA_NH4=0.05/24  % Areal rate constant for NH4 (m/hr)
         kA_TP =0.03/24  % Areal rate constant for TP  (m/hr)
-        d10=6e-3        % d10 diameter (m)
-        d60=8.5e-3      % d60 diameter (m)
+        d10=6e-4        % d10 diameter (m)
+        d60=8.5e-4      % d60 diameter (m)
         COD_0=600       % Initial COD in wastewater (mg/L)
         BOD_0=300       % Initial BOD5 in wastewater (mg/L)
+        TSS_0=860       % Initial TSS in wastewater after sedimentation (mg/L)
         NH3T_0=25       % Initial NH3T (=[NH3]+[NH4+]) in wastewater (mg/L)
         TP_0=7          % Initial TP in wastewater (mg/L)
         pH_0=7.0        % Initial pH in wastewater
+        kappaV=150      % Ergun coefficient for viscous loss
+        kappaI=1.75     % Ergun coefficient for inertial loss
+        
+        dp=[12,37.5,531.5]*10^-6    % Influent particle diameters (m)
+        dist=[0.30,0.315,0.385]     % Influent particle distribution
+        RHOp=1050;                  % Influent particle density (kg/m3)
     end
     
     methods
-        function obj = wetland1(A, z, q, model)
+        function obj = wetland1(A, z, Q, model)
             %WETLAND Construct an instance of this class
             %   Detailed explanation goes here
             obj.A = A;
             obj.z = z;
-            obj.q = q;
+            obj.Q = Q;
+            obj.q = Q/(24*3600)/A;
             obj.model = model;
         end
         
@@ -59,7 +71,7 @@ classdef wetland1 < handle
             %given initial concentrations which are assumed unchanging
             COD = obj.COD_0*exp(-obj.kV_COD*obj.t);
             BOD = obj.BOD_0*exp(-obj.kV_BOD*obj.t);
-            TSS = obj.TSS_0*exp(-obj.kV_TSS*obj.t);
+            TSS = obj.TSS;
             NH4 = obj.NH4_0*exp(-obj.kV_NH4*obj.t);
             TP  = obj.TP_0*exp(-obj.kV_TP*obj.t);
         end
@@ -84,34 +96,47 @@ classdef wetland1 < handle
             psi_f = obj.psi_ae / 2;
         end
         
+        function Ks = get.Ks(obj)
+        % Estimated hydraulic conductivity based on the void fraction and 
+        % particle size
+            Ks = 2.4622e-2*((obj.d10*10^3)^2*obj.phi^3/(1+obj.phi))^0.7825;
+        end
+        
         function t = get.t(obj)
         % Calculation of hydraulic residence time t using
         % Green-Ampt modeling for a single-layer wetland
             if obj.q > obj.Ks
-                h0 = obj.q - obj.Ks;
+                h0 = obj.q - obj.Ks - obj.hL;
             else
-                h0 = 0;
+                h0 = -obj.hL;
             end
             h = h0 - obj.psi_f;
             t = (obj.theta_s - obj.theta_r)/obj.Ks * (obj.z - h*log(1 + obj.z/h));
         end
+
+        function tp = get.tp(obj)
+        % Calculation of the time to ponding using Green-Ampt
+            tp = obj.Ks*abs(obj.psi_f)*(obj.phi-obj.theta_r)/(obj.q*(obj.q-obj.Ks));
+        end
         
         function f = get.f(obj)
         % Calculation of infiltration rate
-            if obj.q < obj.Ks
+            % When q <= Ks, then the infiltration rate = loading rate
+            if obj.q <= obj.Ks
                 f = @(t)obj.q;
+            % When q > Ks, then the infiltration rate can be estimated
             else
-                tp = obj.Ks*abs(obj.psi_f)*(obj.phi-obj.theta_r)/(obj.q*(obj.q-obj.Ks));
                 T_ = abs(obj.psi_f)*(obj.phi-obj.theta_r)/obj.Ks;
-                Fp = obj.q * tp;
+                Fp = obj.q * obj.tp;
                 tc = Fp/obj.Ks - (abs(obj.psi_f)*(obj.phi-obj.theta_r))/obj.Ks * ...
                         log(1+Fp/(abs(obj.psi_f)*(obj.phi-obj.theta_r)));
-                f = @(t)(obj.Ks*(0.707*(((t-tp+tc)+T_)/(t-tp+tc))^0.5 + 0.667 - 0.236*((t-tp+tc)/((t-tp+tc)+T_))^0.5 - ...
-                        0.138 * ((t-tp+tc)/(t-tp+tc)+T_)));
+                f = @(t)(obj.Ks*(0.707*(((t-obj.tp+tc)+T_)/(t-obj.tp+tc))^0.5 + 0.667 - 0.236*((t-obj.tp+tc)/((t-obj.tp+tc)+T_))^0.5 - ...
+                        0.138 * ((t-obj.tp+tc)/(t-obj.tp+tc)+T_)));
             end
         end
         
         function Fstep = Fstep(obj, t)
+        % Guess and check method for Green-Ampt F(t)
             Fguess = obj.Ks*t;
             Fstep = obj.Ks*t + abs(obj.psi_f)*(obj.phi-obj.theta_r)*log(1+Fguess/(abs(obj.psi_f)*(obj.phi-obj.theta_r)));
             while abs(Fguess-Fstep) > 1e-5
@@ -122,18 +147,53 @@ classdef wetland1 < handle
         
         function F = get.F(obj)
         % Calculation of wetting front depth
-            if obj.q < obj.Ks
+            % If q <= Ks, then we use the guess and check method above
+            if obj.q <= obj.Ks
                 F = @(t)(obj.Fstep(t));
+            % If q > Ks, then the direct calculation method can be applied
             else
-                tp = obj.Ks*abs(obj.psi_f)*(obj.phi-obj.theta_r)/(obj.q*(obj.q-obj.Ks));
                 T_ = abs(obj.psi_f)*(obj.phi-obj.theta_r)/obj.Ks;
-                Fp = obj.q * tp;
+                Fp = obj.q * obj.tp;
                 tc = Fp/obj.Ks - (abs(obj.psi_f)*(obj.phi-obj.theta_r))/obj.Ks * ...
                         log(1+Fp/(abs(obj.psi_f)*(obj.phi-obj.theta_r)));
-                F = @(t)(obj.Ks*(0.529*(t-tp+tc) + 0.471*(T_*(t-tp+tc)+(t-tp+tc)^2)^0.5 + 0.0128*T_* ...
-                        (log((t-tp+tc)+T_)-log(T_)) + 0.471*T_*(log((t-tp+tc)+0.5*T_+(T_*(t-tp+tc)+(t-tp+tc)^2)^0.5) - ...
+                F = @(t)(obj.Ks*(0.529*(t-obj.tp+tc) + 0.471*(T_*(t-obj.tp+tc)+(t-obj.tp+tc)^2)^0.5 + 0.0128*T_* ...
+                        (log((t-obj.tp+tc)+T_)-log(T_)) + 0.471*T_*(log((t-obj.tp+tc)+0.5*T_+(T_*(t-obj.tp+tc)+(t-obj.tp+tc)^2)^0.5) - ...
                         log(0.5*T_))));
             end
+        end
+        
+        function hL = get.hL(obj)
+        % Clean head loss in the system (Ergun equation)
+            hL = obj.kappaV*(1-obj.phi)^2/obj.phi^3*refEQ.mu(obj.model.Ta_C)*obj.z*obj.q ...
+                 /(refEQ.RHOw(obj.model.Ta_C)*9.81*obj.d60^2) + obj.kappaI*(1-obj.phi)/obj.phi^3 ...
+                 *obj.z*obj.q^2/(9.81*obj.d60);
+        end
+        
+        function TSS = get.TSS(obj)
+        % Estimate the removal of TSS using rapid filtration equations
+            y   = (1-obj.phi)^(1/3);
+            kB  = 1.381e-23;
+            Ha  = 1e-20;
+            mu  = refEQ.mu(obj.model.Ta_C);
+            RHOw= refEQ.RHOw(obj.model.Ta_C);
+            T   = obj.model.Ta_K;
+            
+            As  = 2*(1-y^5)/(2-3*y+3*y^5-2*y^6);
+            Pe  = 3*pi*mu*obj.dp*obj.d60*obj.q/(kB*T);
+            NR  = obj.dp./obj.d60;
+            NV  = Ha/(kB*T);
+            NG  = 9.81*(obj.RHOp-RHOw)*obj.dp.^2/(18*mu*obj.q);
+            NA  = Ha./(3*pi*mu*obj.dp.^2*obj.q);
+            
+            nuD=2.4*As^(1/3).*NR.^(-0.081).*NV.^(0.052).*Pe.^(-0.715);
+            nuG=0.22*NR.^-0.24.*NV.^0.053.*NG.^1.11;
+            nuI=0.55*As.*NA.^(1/8).*NR.^1.675;
+            
+            nu = nuD + nuG + nuI;
+            a  = 1.0;
+            k  = 3*(1-obj.phi)*nu*a/(2*obj.d60);
+            
+            TSS = sum(obj.TSS_0*obj.dist.*exp(-k*obj.z));
         end
     end
 end
