@@ -3,14 +3,18 @@ classdef wetland1 < handle
     %   Detailed explanation goes here
     
     properties
-        A           % Wetland area (m2)
-        z           % Wetland height (m)
         Q           % Volumetric loading rate (m3/d)
-        q           % Hydraulic loading rate (m/s)
+        no          % Wetland number in series of wetlands
+        TSS_0       % Influent TSS = sed basin effluent (mg/L array)
+
         model       % Main model reference
     end
     
     properties (Dependent)
+        % Design parameters
+        A           % Wetland area (m2)
+        Vw          % Volume of water in the wetlands (m3)
+        
         Ks          % Saturated hydraulic conductivity (m/s)
         t           % Hydraulic residence time (hr)
         tp          % Estimated Green-Ampt time to ponding (s)
@@ -24,56 +28,52 @@ classdef wetland1 < handle
     end
     
     properties (Constant)
+        z=0.8           % Wetland height (m)
+        q=0.07/(3600*24)% Hydraulic loading rate (m/s)
+        qd=0.07         % Hydraulic loading rate (m/d)
         phi=0.41        % Porosity
         theta_s=0.41    % Saturated water content
         theta_r=0       % Residual water content
         psi_ae=-1/44    % Air-entry suction head (m)
         lambda=0.18     % Fitted soil-water parameter
-        kV_COD=2.64/24  % Volumetric rate constant for COD (hr^-1)
-        kV_BOD=3.68/24  % Volumetric rate constant for BOD (hr^-1)
-        kV_TSS=2.59/24  % Volumetric rate constant for TSS (hr^-1)
-        kV_NH4=0.66/24  % Volumetric rate constant for NH4 (hr^-1)
-        kV_TP =0.40/24  % Volumetric rate constant for TP  (hr^-1)
-        kA_COD=0.20/24  % Areal rate constant for COD (m/hr)
-        kA_BOD=0.27/24  % Areal rate constant for BOD (m/hr)
-        kA_TSS=0.19/24  % Areal rate constant for TSS (m/hr)
-        kA_NH4=0.05/24  % Areal rate constant for NH4 (m/hr)
-        kA_TP =0.03/24  % Areal rate constant for TP  (m/hr)
-        d10=6e-4        % d10 diameter (m)
-        d60=8.5e-4      % d60 diameter (m)
-        COD_0=600       % Initial COD in wastewater (mg/L)
+        kA_BOD=0.43     % Areal rate constant for BOD (m/day)
+        kA_TSS=0.28     % Areal rate constant for TSS (m/day)
+        kA_NH4=0.56     % Areal rate constant for NH4 (m/day)
+        d10=5.5e-4      % d10 diameter (m)
+        d60=3.1e-3      % d60 diameter (m)
         BOD_0=300       % Initial BOD5 in wastewater (mg/L)
-        TSS_0=860       % Initial TSS in wastewater after sedimentation (mg/L)
         NH3T_0=25       % Initial NH3T (=[NH3]+[NH4+]) in wastewater (mg/L)
-        TP_0=7          % Initial TP in wastewater (mg/L)
         pH_0=7.0        % Initial pH in wastewater
         kappaV=150      % Ergun coefficient for viscous loss
         kappaI=1.75     % Ergun coefficient for inertial loss
-        
-        dp=[12,37.5,531.5]*10^-6    % Influent particle diameters (m)
-        dist=[0.30,0.315,0.385]     % Influent particle distribution
-        RHOp=1050;                  % Influent particle density (kg/m3)
+    
+        NTIS=1          % Number of tanks in series (1=plug flow)
     end
     
     methods
-        function obj = wetland1(A, z, Q, model)
+        function obj = wetland1(Q, TSS_0, no, model)
             %WETLAND Construct an instance of this class
             %   Detailed explanation goes here
-            obj.A = A;
-            obj.z = z;
             obj.Q = Q;
-            obj.q = Q/(24*3600)/A;
+            obj.TSS_0 = TSS_0;
+            obj.no = no;
             obj.model = model;
         end
         
-        function [COD, BOD, TSS, NH4, TP] = kinetics(obj)
+        function A = get.A(obj)
+            A = obj.Q / obj.qd;
+        end
+        
+        function Vw = get.Vw(obj)
+            Vw = obj.A * obj.z * obj.phi;
+        end
+        
+        function [BOD, TSS, NH4] = kinetics(obj)
             %KINETICS Outputs the concentrations of COD,BOD,TSS,NH4,TP
             %given initial concentrations which are assumed unchanging
-            COD = obj.COD_0*exp(-obj.kV_COD*obj.t);
-            BOD = obj.BOD_0*exp(-obj.kV_BOD*obj.t);
-            TSS = obj.TSS;
-            NH4 = obj.NH4_0*exp(-obj.kV_NH4*obj.t);
-            TP  = obj.TP_0*exp(-obj.kV_TP*obj.t);
+            BOD = obj.BOD_0*(1+obj.kA_BOD*obj.z/(obj.NTIS*obj.qd))^-obj.no;
+            TSS = obj.TSS_0*(1+obj.kA_TSS*obj.z/(obj.NTIS*obj.qd))^-obj.no;
+            NH4 = obj.NH4_0*(1+obj.kA_NH4*obj.z/(obj.NTIS*obj.qd))^-obj.no;
         end
         
         function NH3_0 = get.NH3_0(obj)
@@ -177,13 +177,16 @@ classdef wetland1 < handle
             mu  = refEQ.mu(obj.model.Ta_C);
             RHOw= refEQ.RHOw(obj.model.Ta_C);
             T   = obj.model.Ta_K;
+            dp  = obj.model.WW_dp;
+            RHOp= obj.model.WW_RHOp;
+            
             
             As  = 2*(1-y^5)/(2-3*y+3*y^5-2*y^6);
-            Pe  = 3*pi*mu*obj.dp*obj.d60*obj.q/(kB*T);
-            NR  = obj.dp./obj.d60;
+            Pe  = 3*pi*mu*dp*obj.d60*obj.q/(kB*T);
+            NR  = dp./obj.d60;
             NV  = Ha/(kB*T);
-            NG  = 9.81*(obj.RHOp-RHOw)*obj.dp.^2/(18*mu*obj.q);
-            NA  = Ha./(3*pi*mu*obj.dp.^2*obj.q);
+            NG  = 9.81*(RHOp-RHOw)*dp.^2/(18*mu*obj.q);
+            NA  = Ha./(3*pi*mu*dp.^2*obj.q);
             
             nuD=2.4*As^(1/3).*NR.^(-0.081).*NV.^(0.052).*Pe.^(-0.715);
             nuG=0.22*NR.^-0.24.*NV.^0.053.*NG.^1.11;
@@ -193,7 +196,13 @@ classdef wetland1 < handle
             a  = 1.0;
             k  = 3*(1-obj.phi)*nu*a/(2*obj.d60);
             
-            TSS = sum(obj.TSS_0*obj.dist.*exp(-k*obj.z));
+            TSS = sum(obj.TSS_0.*exp(-k*obj.z));
+        end
+    end
+    
+    methods (Static)
+        function A = determineArea(no_people)
+            A = 0.15 * no_people / wetland1.qd;
         end
     end
 end

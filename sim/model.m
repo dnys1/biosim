@@ -9,15 +9,29 @@ classdef model < handle
         Ta_C        % Air temperature (C)
         To_C        % Outside temperature (C)
         Ma          % Dry air mass (kg)
-        Mv          % Vapor mass (kg)
         RHmax       % Maximum indoor humidity
         wv          % Wind velocity (m/s)
         dt          % Model time step (s)
+        no_people   % Number of people BioSim supports
         
-        blocks      % Array of all block objects
         trackTa     % Air temperature monitoring array
         trackTw     % Average water body temperature array
         trackETo    % Reference evapotranspiration (mm/h)
+        
+        % Tracking of water cycling
+        trackVcrop
+        trackVwetland
+        trackVvapor
+        trackVstore
+        trackVsed
+        trackVreject
+        
+        % Tracking of crop vars
+        trackLeafB  % Array of leafB vals
+        trackStorB  % Array of storB vals
+        trackStemB  % Array of stemB vals
+        trackRootB  % Array of rootB vals
+        trackDVS    % Array of DVS vals
         
         hour        % Tracks the hour of the day
         day         % Tracks the day since starting
@@ -31,19 +45,32 @@ classdef model < handle
         
         W           % Water handler
         
-        waterBlocks % Array of all water blocks
-        cropBlocks  % Array of all crop blocks
+        waterBlock  % waterBody handle
+        cropBlock   % crop handle
+        filterBlock % filterUnit handle
+        wetlandBlock% wetland handle
+        sedBlock    % sedimentBasin handle
+        
+        % Water parameters that change each step
+        dMv         % delta Mv i.e. change in vapor mass (kg)
+        Vi          % irrigation needed for crops (m3)
     end
     
     properties (Constant)
-        Ra = 0.288;     % gas constant for air kJ/(kg-K)
-        Rv = 0.463;     % gas constant for water vapor kJ/(kg-K)
         epsilon = 0.622;% epsilon in gas law equations (=Ra/Rv)
         ca = 1.000;     % air specific heat (kJ/kg-deg C)
         cw = 4.186;     % water specific heat (kJ/kg-deg C)
         cv = 1.996;     % water vapor specific heat (kJ/kg-deg C)
         kWall = 0.001;  % thermal conductivity of building wall material (kW/m-K)
         sWall = 0.7;    % wall thickness (m)
+        
+        hw = 3;         % Height of water bodies (m)
+        
+        % Water quality parameters
+        WW_dp=[12,37.5,468.5,1000]*1e-6         % Raw wastewater particle diameters (m)
+        WW_dist=[0.26,0.27,0.33,0.14]           % Raw wastewater particle distribution (-)
+        WW_RHOp=1050                            % Raw wastewater particle density (kg/m3)
+        WW_TSS_0=1000                           % Raw wastewater TSS concentration (mg/L)
     end
     
     properties (Dependent)
@@ -61,10 +88,13 @@ classdef model < handle
         To_K        % Outside air temperature (K)
         RH          % Current relative humidity
         ETo         % Reference evapotranspiration (mm/hr)
+        Rs          % Crop "solar" radiation (MJ)
+        
+        WW_Q        % Wastewater flow (m3/d)
     end
     
     methods
-        function obj = model(L, W, H, P, Ta, To, RH, dt)
+        function obj = model(no_people, P, Ta, To, RH, dt)
             %MODEL Construct an instance of this class
             %   A   = Area of BioSim (m2)
             %   H   = Height of BioSim space (m)
@@ -76,16 +106,18 @@ classdef model < handle
             
             if nargin > 0
                 % Initialize model
-                obj.Length = L;
-                obj.Width = W;
-                obj.Height = H;
+                [At, Ac, Aw] = model.determineArea(no_people);
+                Area = At + Ac + Aw;
+                obj.Length = sqrt(Area);
+                obj.Width = Area / obj.Length;
+                obj.Height = 10;
                 obj.Ta_C = Ta;
                 obj.To_C = To; 
-                RHOa = P / ((Ta+273.15) * obj.Ra);
+                RHOa = P / ((Ta+273.15) * refEQ.Ra);
                 obj.Ma = RHOa * obj.Volume;
-                obj.Mv = 0;
                 obj.RHmax = RH;
-                obj.wv = 0;
+                obj.wv = 0.1;
+                obj.no_people=no_people;
                 
                 obj.dt = dt;
                 
@@ -94,14 +126,14 @@ classdef model < handle
 
                 % Create empty (soil) array of blocks to initialize area
                 % Blocks are 1x1 soil blocks
-                for j = 1:1:W
-                    for i = 1:1:L
-                        blocks(j, i) = block(j, i, 1, 1, soil(1, 'soil'));
-                    end
-                end
-                obj.blocks = blocks;
+%                 for j = 1:1:obj.Width
+%                     for i = 1:1:obj.Length
+%                         blocks(j, i) = block(j, i, 1, 1, soil(1, 'soil'));
+%                     end
+%                 end
+%                 obj.blocks = blocks;
                 
-                obj.setup;
+                obj.setup(Ac, Aw);
             end
         end
         
@@ -114,7 +146,7 @@ classdef model < handle
         end
         
         function M = get.M(obj)
-            M = obj.Mv + obj.Ma; 
+            M = obj.W.Mvapor + obj.Ma; 
         end
         
         function RHO = get.RHO(obj)
@@ -134,11 +166,11 @@ classdef model < handle
         end
         
         function Pa = get.Pa(obj)
-            Pa = obj.RHOa * obj.Ra * obj.Ta_K;
+            Pa = obj.RHOa * refEQ.Ra * obj.Ta_K;
         end
         
         function Pv = get.Pv(obj)
-            Pv = obj.RHOv * obj.Rv * obj.Ta_K;
+            Pv = obj.RHOv * refEQ.Rv * obj.Ta_K;
         end
         
         function Pvs = get.Pvs(obj)
@@ -158,7 +190,15 @@ classdef model < handle
         end
         
         function ETo = get.ETo(obj)
-            ETo = refEQ.ETo(obj.Ta_C, obj.QQsn, obj.wv, obj.P, obj.Pv);
+            ETo = refEQ.ETo(obj);
+        end
+        
+        function Rs = get.Rs(obj)
+            Rs = obj.gLight.Q(time.HOUR)/1000;
+        end
+        
+        function WW_Q = get.WW_Q(obj)
+            WW_Q = 0.15*obj.no_people;
         end
         
         % These functions take too long to run!
@@ -177,47 +217,54 @@ classdef model < handle
 %             cropBlocks = unique(c);
 %         end
         
-        function setup(obj)
+        function setup(obj, Ac, Aw)
             % Create a lake object
-            w.x=1;
-            w.y=1;
-            w.w=3;
-            w.h=10;
-            w.d=1;
-            wb = waterBody(w.w*w.h, w.d, 20);
-            for i = w.x:1:(w.x+w.w-1)
-                for j = w.y:1:(w.y+w.h-1)
-                obj.blocks(i, j).data = wb;
-                end
-            end
-            obj.waterBlocks = [obj.waterBlocks wb];
+%             w.x=1;
+%             w.y=1;
+%             w.w=3;
+%             w.h=10;
+%             w.d=1;
+            
+%             for i = w.x:1:(w.x+w.w-1)
+%                 for j = w.y:1:(w.y+w.h-1)
+%                 obj.blocks(i, j).data = wb;
+%                 end
+%             end
+%             obj.waterBlocks = [obj.waterBlocks wb];
             
             % Create a crop object
-            c.x=4;
-            c.w=7;
-            c.y=1;
-            c.h=10;
-            wheatCrop = crop(obj,cropType.Wheat,c.w*c.h);
-            for i = c.x:1:(c.x+c.w-1)
-                for j = c.y:1:(c.y+c.h-1)
-                    obj.blocks(i, j).data = wheatCrop;
-                end
-            end
-            obj.cropBlocks = [obj.cropBlocks wheatCrop];
+%             c.x=4;
+%             c.w=7;
+%             c.y=1;
+%             c.h=10;
+%             
+%             for i = c.x:1:(c.x+c.w-1)
+%                 for j = c.y:1:(c.y+c.h-1)
+%                     obj.blocks(i, j).data = wheatCrop;
+%                 end
+%             end
+%             obj.cropBlocks = [obj.cropBlocks wheatCrop];
+            
+            % Create a treatment train
+            obj.cropBlock = crop(Ac,cropType.Wheat,obj);
+            obj.waterBlock = waterBody(Aw, obj.hw, 20);
+            obj.sedBlock = sedimentBasin(63e-6,obj.WW_Q,obj);
+            obj.wetlandBlock = wetland1(obj.WW_Q,obj.sedBlock.TSS,1,obj);
+            obj.filterBlock = filterUnit(obj.WW_Q,obj.wetlandBlock.TSS,obj);
             
             % Create lighting objects
-            obj.gLight = lightObj(c.w*c.h, 640, 2, 1, obj, 6, 23, 'Growing light');
+            obj.gLight = lightObj(Ac, 640, 2, 1, obj, 6, 23, 'Growing light');
             obj.lLight = lightObj(obj.Area-obj.gLight.A, 12, 1000, 1000, obj, 6, 23, 'Living area light');
         
             % Create necessary handlers & variables
-            obj.H = heat(obj.dt);
-            obj.W = water(1000, w.w*w.h*w.d*1000);
+            obj.H = heat(obj);
+            obj.W = water(obj);
         end
         
         function stepTime(obj)
             %% TODO: Update to change based off dt
             if obj.hour == 24
-                obj.hour = 0;
+                obj.hour = 1;
                 obj.day = obj.day + 1;
             else
                 obj.hour = obj.hour + 1;
@@ -238,57 +285,33 @@ classdef model < handle
         function output = step(obj)
         %STEP Run the model for one dt step
             %% Calculate the amount of heat exchange
-            Tw = [];
             obj.QQsn = 0;
-            for j = 1:1:(obj.dt*1)
+            for j = 1:1:(3600/obj.dt)
                 % Calculate amount of water released into air from
                 % all water blocks
-                dQ = 0; dQsn = 0; dQan = 0; dQe = 0; dQc = 0; dQbr = 0;
-                dMv = 0;
-                for w = obj.waterBlocks
-                    % Calculate the heat absorbed by water due to lighting
-                    % Valid for "daylight" hours (5AM - 8PM, for example)
-                    Qsn = obj.lLight.Q(obj.dt) * w.Aw;
+                obj.dMv = 0;
+                w = obj.waterBlock;
+                % Calculate the heat absorbed by water due to lighting
+                % Valid for "daylight" hours (5AM - 8PM, for example)
+                Qsn = obj.lLight.Q(obj.dt) * w.Aw;
 
-                    % Calculate saturation vapor pressure and density
-                    RHOvs = obj.Pvs / (obj.Rv * obj.Ta_K);
+                % Solve nonlinear equation for equilibrium temp. of water
+                fun = @(T) obj.H.water(T, Qsn);
+                [Ts_C, ~] = fzero(fun, w.Tw_C);
 
-                    % Evaporation coefficient (kg/m2-s)
-                    ae = (25 + 19*obj.wv) / 3600;
-                    % Hypothetical saturated vapor mass per total mass (kg/kg)
-                    % i.e. saturation humidity ratio
-                    x_s = RHOvs * obj.Volume / obj.Ma;
-                    % Actual (current) vapor mass per total mass (kg/kg)
-                    % i.e. humidity ratio
-                    x = obj.Mv / obj.Ma;
-                    % Amount of water vapor evaporated (kg/dt)
-                    dmv = w.Aw * (obj.RHmax*x_s - x) * ae * obj.dt;
-
-                    % Solve nonlinear equation for equilibrium temp. of water
-                    fun = @(T) obj.H.water(T, obj.Ta_C, obj.Pv, dmv, Qsn, obj.wv, w.Aw);
-                    [Ts_C, Q] = fzero(fun, w.Tw_C);
-
-                    % Calculate change in water temp based off surface
-                    % temp change
-                    ds = 0.0001; % Surface depth = 0.1mm
-                    RHOs = refEQ.RHOw(Ts_C);
-                    Vs = w.Aw * ds;
-                    w.Tw_C = (w.RHOw*(w.Vw-Vs)*w.Tw_C + RHOs*Vs*Ts_C)/(w.RHOw*(w.Vw-Vs) + RHOs*Vs);
-
-                    % Update mass of water
-                    w.Mw = w.Mw - dmv;
-
-                    % Track water temp
-                    Tw = [Tw w.Tw_C];
-
-                    dQ = dQ + Q/1000;
-                    dQsn = dQsn + Qsn/1000;
-                    dQan = dQan + obj.H.Qan/1000;
-                    dQbr = dQbr + obj.H.Qbr/1000;
-                    dQe = dQe + obj.H.Qe/1000;
-                    dQc = dQc + obj.H.Qc/1000;
-                    dMv = dMv + dmv;
-                end
+                % Calculate change in water temp based off surface
+                % temp change
+                ds = 0.01; % Surface depth = 1cm
+                RHOs = refEQ.RHOw(Ts_C);
+                Vs = w.Aw * ds;
+                w.Tw_C = (w.RHOw*(w.Vw-Vs)*w.Tw_C + RHOs*Vs*Ts_C)/(w.RHOw*(w.Vw-Vs) + RHOs*Vs);
+                dQsn = Qsn/1000;
+                dQan = obj.H.Qan/1000;
+                dQbr = obj.H.Qbr/1000;
+                dQe = obj.H.Qe/1000;
+                dQc = obj.H.Qc/1000;
+                obj.dMv = obj.H.dMv;
+                
                 % Add short-wave radiation to accumulator
                 obj.QQsn = obj.QQsn + dQsn;
 
@@ -296,31 +319,80 @@ classdef model < handle
                 qWall = (obj.kWall / obj.sWall) * (2*obj.Length*obj.Height + 2*obj.Width*obj.Height) * (obj.To_C - obj.Ta_C) * obj.dt;
 
                 % Update temperature of air
-                obj.Ta_C = (qWall+(dQbr+dQc+dQe-dQan))/(obj.Mv*obj.cv + obj.Ma*obj.ca) + obj.Ta_C;
-
-                % Update mass of water vapor in air
-                obj.Mv = obj.Mv + dMv;
-                obj.W.Mvapor = obj.W.Mvapor + dMv;
-                obj.W.Mbody = obj.W.Mbody - dMv;
-            end
-            
-            I = 0;
-            for c = obj.cropBlocks
-                % Notice how the timestep is an hour for crops unlike water
-                c.step;
+                obj.Ta_C = (qWall+(dQbr+dQc+dQe-dQan))/(obj.W.Mvapor*obj.cv + obj.Ma*obj.ca) + obj.Ta_C;
                 
-                % Calculate necessary irrigation based off ET
-                I = I + c.ET;
+                c = obj.cropBlock;
+                if obj.dt == time.MINUTE
+                    if mod(j,60)==0
+                        c.step;
+                        % Calculate necessary irrigation based off ET
+                        obj.Vi = c.ET*1e-3; % convert mm/hr to m3/hr
+                    end
+                else
+                    c.step;
+                    % Calculate necessary irrigation based off ET
+                    obj.Vi = c.ET*1e-3; % convert mm/hr to m3/hr
+                end
+                
+                % Step water cycling
+                obj.W.step;
             end
             
             % TODO: Calculate soil water conduct and EC values
             
-            obj.trackTa = [obj.trackTa obj.Ta_C];
-            obj.trackTw = [obj.trackTw mean(Tw)];
+            obj.trackTa         = [obj.trackTa obj.Ta_C];
+            obj.trackTw         = [obj.trackTw w.Tw_C];
+            obj.trackVcrop      = [obj.trackVcrop obj.W.Vcrop];
+            obj.trackVstore     = [obj.trackVstore obj.W.Vstore];
+            obj.trackVwetland   = [obj.trackVwetland obj.W.Vwetland];
+            obj.trackVsed       = [obj.trackVsed obj.W.Vsed];
+            obj.trackVreject    = [obj.trackVreject obj.W.Vreject];
+            obj.trackVvapor     = [obj.trackVvapor obj.W.Vvapor];
+            obj.trackDVS        = [obj.trackDVS obj.cropBlock.DVS];
+            obj.trackLeafB      = [obj.trackLeafB obj.cropBlock.LeafB];
+            obj.trackStemB      = [obj.trackStemB obj.cropBlock.StemB];
+            obj.trackRootB      = [obj.trackRootB obj.cropBlock.RootB];
+            obj.trackStorB      = [obj.trackStorB obj.cropBlock.StorB];
+            obj.trackETo        = [obj.trackETo obj.ETo];
             output.Ta = obj.trackTa;
             output.Tw = obj.trackTw;
             
             obj.stepTime;
+        end
+    end
+    
+    methods (Static)
+        function [At, Ac, Aw] = determineArea(no_people)
+            At = model.determineTreatmentArea(no_people);
+            Ac = model.determineCropArea(no_people);
+            Aw = model.determineWaterStorageArea(no_people);
+        end
+        
+        function At = determineTreatmentArea(no_people)
+            % Determine wastewater flux
+            WW_flux = 0.150 * no_people / 24; % m3/hr
+            % Determine number of units
+            no_UF = ceil(mod(WW_flux, filterUnit.UF_max_flux));
+            no_RO = ceil(mod(WW_flux, filterUnit.RO_max_flux));
+            no_UV = ceil(mod(WW_flux, filterUnit.UV_flux));
+            A_UF = no_UF * filterUnit.UF_footprint;
+            A_RO = no_RO * filterUnit.RO_footprint;
+            A_UV = no_UV * filterUnit.UV_footprint;
+            A_wetland = wetland1.determineArea(no_people);
+            
+            At = A_UF + A_RO + A_UV + A_wetland;
+        end
+        
+        function Ac = determineCropArea(no_people)
+            % Determine number of calories necessary
+            calories = 2000 * 365.25 * no_people;
+            % Determine area for number of calories
+            caloriesPerM2 = refEQ.rand(685,1370);
+            Ac = calories / caloriesPerM2;
+        end
+        
+        function Aw = determineWaterStorageArea(no_people)
+            Aw = no_people * 20 / model.hw;
         end
     end
 end

@@ -43,7 +43,7 @@ classdef lightObj < handle
         end
         
         function Q = Q(obj, dt)
-            Q = obj.Qperm2 * (3600/dt);
+            Q = obj.Qperm2 * dt;
         end
         
         function Qperm2 = get.Qperm2(obj)

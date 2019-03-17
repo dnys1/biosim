@@ -27,11 +27,6 @@ classdef crop < handle
         StemB       % Biomass accumulated in stems (g)
         RootB       % Biomass accumulated in roots (g)
         MaxStemB    % Maximum stem biomass (g)
-        
-        trackLeafB  % Array of leafB vals
-        trackStorB  % Array of storB vals
-        trackStemB  % Array of stemB vals
-        trackRootB  % Array of rootB vals
     end
     
     properties (Dependent)
@@ -53,7 +48,7 @@ classdef crop < handle
     end
     
     methods
-        function obj = crop(model, type, Ac)
+        function obj = crop(Ac, type, model)
             %CROP Construct an instance of this class
             %   Detailed explanation goes here
             if (strcmpi(type, 'Wheat') || ...
@@ -144,6 +139,7 @@ classdef crop < handle
         end
         
         function ET = get.ET(obj)
+            % ET = mm/hr
             ET = obj.Kc * obj.model.ETo;
         end
         
@@ -169,10 +165,6 @@ classdef crop < handle
         function step(obj)
             % Only continue if plant has emerged and not reached maturity
             if obj.DVS == -1 || obj.DVS > 2
-                obj.trackLeafB = [obj.trackLeafB obj.LeafB];
-                obj.trackStemB = [obj.trackStemB obj.StemB];
-                obj.trackRootB = [obj.trackRootB obj.RootB];
-                obj.trackStorB = [obj.trackStorB obj.StorB];
                 return
             end
             
@@ -232,11 +224,6 @@ classdef crop < handle
             % Leaves
             RSenL = rrsent*obj.LeafB;
             obj.LeafB = obj.LeafB + (PartL-RSenL*dt);
-            
-            obj.trackLeafB = [obj.trackLeafB obj.LeafB];
-            obj.trackStemB = [obj.trackStemB obj.StemB];
-            obj.trackRootB = [obj.trackRootB obj.RootB];
-            obj.trackStorB = [obj.trackStorB obj.StorB];
         end
     end
 end

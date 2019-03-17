@@ -3,7 +3,8 @@ classdef refEQ
     %   All static equations
     
     properties (Constant)
-        Rv = 0.463; % gas constant for water vapor kJ/(kg-K)
+        Ra = 0.288;     % gas constant for air kJ/(kg-K)
+        Rv = 0.463;     % gas constant for water vapor kJ/(kg-K)
     end
     
     methods (Static)
@@ -60,7 +61,12 @@ classdef refEQ
            GDD = max(trapz(T) / 24, 0);
         end
         
-        function ETo = ETo(Ta_C, Rs, wv, P, Pv)
+        function kAir = kAir(Ta_C)
+            Ta = Ta_C + 273.15;
+            kAir = 1.5207e-11*Ta^3-4.8574e-8*Ta^2+1.0184e-4*Ta-3.9333e-4;
+        end
+        
+        function ETo = ETo(model)
             %ETo Returns the reference evapotranspiration per hour
             %
             %   Ta_C = air temperature (C)
@@ -76,9 +82,11 @@ classdef refEQ
             % http://edis.ifas.ufl.edu/pdffiles/AE/AE45900.pdf
 
             sigma = 2.0413e-10; % Stefan-Boltzmann constant (MJ m^-2 K^-4 h^-1)
-
-            % Convert Rs in kJ to megajoules (MJ)
-            Rs = Rs / 1000;
+            Ta_C = model.Ta_C;
+            Rs = model.Rs;
+            wv = model.wv;
+            P = model.P;
+            Pv = model.Pv;
 
             % Calculate slop of saturation vapor pressure curve
             Delta = 4098 * (0.6108 * exp(17.27 * Ta_C / (Ta_C + 237.3)))/(Ta_C + 237.3).^2;

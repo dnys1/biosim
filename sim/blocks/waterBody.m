@@ -4,7 +4,6 @@ classdef waterBody < handle
     
     properties
         Aw      % Area of the water body (m2)
-        Mw      % Mass of the water body (kg)
         hw      % Height of the water body (m)
         Tw_C    % Temperature of the water body (oC)
     end
@@ -12,7 +11,8 @@ classdef waterBody < handle
     properties (Dependent)
         Tw_K    % Temperature of the water body (K)
         RHOw    % Water body density (kg/m3)
-        Vw      % Volume of watre (m3)
+        Vw      % Volume of water (m3)
+        Mw      % Mass of waterbody (kg)
     end
     
     methods
@@ -22,7 +22,6 @@ classdef waterBody < handle
             obj.Aw = Aw;
             obj.hw = hw;
             obj.Tw_C = Tw_C;
-            obj.Mw = (Aw * hw) * obj.RHOw;
         end
         
         function Tw_K = get.Tw_K(obj)
@@ -35,6 +34,10 @@ classdef waterBody < handle
         
         function Vw = get.Vw(obj)
             Vw = obj.Aw * obj.hw;
+        end
+        
+        function Mw = get.Mw(obj)
+            Mw = obj.Vw * obj.RHOw;
         end
     end
 end

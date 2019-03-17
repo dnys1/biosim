@@ -1,8 +1,7 @@
 classdef time < double
     enumeration
-        SECOND (3600)
         MINUTE (60)
-        HOUR (1)
+        HOUR (3600)
     end
 end
 
