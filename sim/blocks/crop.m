@@ -112,20 +112,31 @@ classdef crop < handle
         end
         
         function GDD = get.GDD(obj)
-            T = min(obj.model.trackTa, obj.Tcutoff) - obj.Tbase;
+            T = min((obj.model.trackTa*9/5)+32, (obj.Tcutoff*9/5)+32) - (9/5*obj.Tbase+32);
             T = T(T>0);
             GDD = max(trapz(T) / 24, 0);
         end
         
         function Kc = get.Kc(obj)
            % https://aces.nmsu.edu/aes/irrigation/wheat.html
+           if obj.DVS >= 2 
+               Kc = 0;
+               return
+           end
            switch(obj.type)
                case 'Wheat'
-                   Kc = 2.7e-1 - 4.8e-4*obj.GDD + 6.27e-7*obj.GDD - 1.3e-10*obj.GDD^3;
+                   Kc = -1.74e-2+8.94e-4*obj.GDD-5.1e-7*obj.GDD^2;
+                   if Kc <= 0
+                       Kc = 1.93+2.28e-3*obj.GDD-4.47e-7*obj.GDD^2;
+                   end
                case 'Corn'
                    Kc = 1.2e-1 + 1.68e-3*obj.GDD - 2.46e-7*obj.GDD^2 - 4.37e-10*obj.GDD^3;
                case 'Soy'
                    Kc = 4.35e-2 + 1.37e-3*obj.GDD - 5.3e-7*obj.GDD^2 + 5.43e-11*obj.GDD^3;
+           end
+           if Kc > 1
+               Kc = 0;
+               return
            end
         end
         

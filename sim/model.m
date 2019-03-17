@@ -36,6 +36,7 @@ classdef model < handle
         hour        % Tracks the hour of the day
         day         % Tracks the day since starting
         date        % Tracks the actual date
+        hours       % Array of hours used for plotting
         
         H           % Heat equation handler
         heatperm2   % Heat delivered per m2
@@ -123,6 +124,7 @@ classdef model < handle
                 
                 obj.hour = 1; obj.day = 1;
                 obj.date = datetime('today');
+                obj.hours = [];
 
                 % Create empty (soil) array of blocks to initialize area
                 % Blocks are 1x1 soil blocks
@@ -268,6 +270,11 @@ classdef model < handle
                 obj.day = obj.day + 1;
             else
                 obj.hour = obj.hour + 1;
+            end
+            if isempty(obj.hours)
+                obj.hours = [1];
+            else
+                obj.hours = [obj.hours max(obj.hours)+1];
             end
             obj.date = obj.date + 1/24;
         end

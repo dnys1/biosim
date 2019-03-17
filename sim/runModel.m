@@ -14,7 +14,7 @@ To = 20;
 RH = 0.5;
 
 % Time step
-dt = time.MINUTE;
+dt = time.HOUR;
 
 % Length of simulation
 hours = 1:1:168*3;
