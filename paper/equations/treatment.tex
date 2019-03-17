@@ -88,35 +88,36 @@ where
 \end{equation*}
 and values for $t_1$, $\theta_i$, and $\Psi_f$ are calculated using \eqref{eq:t_1}-\eqref{eq:Psi_f}.
 \subsection{Treatment Kinetics}
-Using $t$ as an estimate for hydraulic residence time (HRT), the system can be modeled as an ideal plug-flow reactor for modeling degradation of COD, BOD, TSS, NH$_4$, and TP using rate constants derived from \cite{pilot} and the following equation:
+%Using $t$ as an estimate for hydraulic residence time (HRT), the system can be modeled as an ideal plug-flow reactor for modeling degradation of COD, BOD, TSS, NH$_4$, and TP using rate constants derived from \cite{pilot} and the following equation:
+Kinetics are modeled using the $P-k-C*$ model of \cite{kadlec} with areal rate constants derived from \cite{kA}:
 \begin{equation}
-    \ln{\left(\frac{C}{C_0}\right)} = -k_V t \; \text{ or } \; C = C_0 e^{-k_V t}
+    \frac{C-C^*}{C_i-C^*}=\left(1+\frac{k_Ay}{Pq}\right)^{-P}
 \end{equation}
 where
 \begin{conditions*}
-    C & Concentration at outlet (mg/L) \\
-    C_0 & Concentration at inlet (mg/L) \\
-    k_V & Volumetric rate constant (hr$^{-1}$) \\
-    t & Estimated HRT given by \eqref{eq:t_1} or \eqref{eq:t_2}
+    C & Concentration at $y$ (mg/L) \\
+    C_i & Concentration at inlet (mg/L) \\
+    C^* & Background concentration (mg/L) \\
+    k_A & Areal rate constant (m/day) \\
+    y & Depth in wetland (m) \\
+    P & apparent number of TIS\footnote{For our plug-flow model, $P=1$}
 \end{conditions*}
-Values for $k_V$ are summarized below (Table \ref{tab:kV}) for a wetland packed with 5-10 mm gravel and planted with common reed plants (\textit{Phragmites australis}).
+Values for $k_A$ are summarized below (Table \ref{tab:kA}) for a wetland packed with 0-4 mm gravel ($d_{10}=0.55$mm, $d_{60}=3.1$mm) and planted with common reed plants (\textit{Phragmites australis}).
 \begin{table}[ht]
     \centering
     \begin{tabular}{c|c}
-    \textbf{Pollutant} & \textbf{$k_V$ (hr$^{-1}$)} \\
+    \textbf{Pollutant} & \textbf{$k_A$ (m/day)} \\
     \hline
-    BOD & 0.153 \\
-    COD & 0.110 \\
-    TSS & 0.108 \\
-    NH$_4$ & 0.028 \\
-    TP & 0.017
+    BOD$_5$ & 0.43 \\
+    TSS & 0.28 \\
+    NH$_4^+$ & 0.56
     \end{tabular}
-    \caption{$k_V$ rate constants from \cite{pilot}}
-    \label{tab:kV}
+    \caption{$k_A$ rate constants from \cite{kA}}
+    \label{tab:kA}
 \end{table}
 \subsection{Filtration}
 \subsubsection{TSS Removal}
-While the rate constants above can only be verified through experimentation, the rate of removal of TSS can be estimated using an independent set of equations if we consider the wetland equivalent to a rapid granular filter. This will serve to verify, perhaps, the $k_V$ value from Table \ref{tab:kV}.
+While the rate constants above can only be verified through experimentation, the rate of removal of TSS can be estimated using an independent set of equations if we consider the wetland equivalent to a rapid granular filter. This will serve to verify, perhaps, the $k_A$ value from Table \ref{tab:kA}.
 
 Yao et al. developed a model of water filtration based off filter media grains acting as collectors for particles which enter their region of influence. The mass removal is calculated as the rate at which particles enter their proximity multiplied by a transport efficiency ($\eta$) and attachment efficiency factor ($\alpha$). The mass balance was developed by Crittenden et al. to be modeled as a first-order reaction \cite{principles}.
 \begin{equation}
@@ -198,7 +199,7 @@ The main assumptions for the treatment wetlands are:
 \begin{itemize}
     \item The assumptions of the Green-Ampt equation including a sharp wetting front and complete saturation of the wetted area.
     \item The wetland behaves like an ideal plug-flow reactor.
-    \item The wetlands are packed with 5-10 mm gravel and planted with common reed at approximately 70 units per m$^2$.
+    \item The wetlands are packed with 0.8m of 0-4 mm gravel and densely packed with common reed.
     \item Particle size distribution of raw wastewater follows that of \cite{particle_size_dist} (Table \ref{tab:particle_size_dist}).
 \end{itemize}
 \begin{table}[ht]
@@ -211,7 +212,7 @@ The main assumptions for the treatment wetlands are:
     $63 < d_p \leq 1000$ & 33 \\
     $d_p > 1000$ & 14
     \end{tabular}
-    \caption{Caption}
+    \caption{Particle size distribution in raw wastewater}
     \label{tab:particle_size_dist}
 \end{table}
 In reality, none of the assumptions above would likely hold true and thus, this is a heavily idealized system used to model a crude approximation of treatment quality and hydraulic characteristics.

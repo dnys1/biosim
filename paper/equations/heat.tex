@@ -80,7 +80,7 @@ T_s & Water surface temperature (\degree C)
 \subsubsection{Conduction/Convection ($J_c$)}
 Conduction and convection both contribute to the total heat flux at the surface of the water. 
 
-It can be calculated using the following equations \cite{chapra_surface_1997}:
+When air flows over water and the water surface is warmer than the air, convection can be calculated using the following equations \cite{chapra_surface_1997}:
 \begin{gather}
     J_c = h_c (T_s - T_{\text{air}}) \\
     h_c = 10.45 - u + 10\sqrt{u}
@@ -90,6 +90,21 @@ where
 J_c & Conduction-convection heat flux (W/m$^2$) \\
 h_c & Convective heat transfer coefficient (W m$^{-2}$ K$^{-1}$) \\
 u & Wind velocity at the surface (m/s)
+\end{conditions*}
+
+However, when the air which flows over the surface is cooler and the water and the heat exchange direction is reversed, convection must be estimated using the Nusselt number \cite{convection_air}:
+\begin{gather}
+    J_c = h (T_s - T_\text{air}) \\
+    Nu = \frac{hL}{k} = \left(0.037\text{Re}^{4/5}-871\right)\text{Pr}^{1/3}
+\end{gather}
+where
+\begin{conditions*}
+    h & Convective heat transfer coeff. from water $\rightarrow$ air (W m$^{-2}$ K$^{-1}$) \\
+    L & Characteristic length of water surface (m) \\
+    k & Thermal conductivity of water (m) \\
+    \text{Nu} & Nusselt number (unitless) \\
+    \text{Re} & Reynolds number (unitless) \\
+    \text{Pr} & Prandtl number (unitless)
 \end{conditions*}
 
 \subsubsection{Evaporation ($J_e$)}
@@ -113,7 +128,8 @@ Then the total heat transfer can be calculated using the heat transfer formula \
 and by estimating the latent heat of evaporation of water \eqref{eq:latent_heat}.
 \begin{conditions*}
 J_e & Evaporative heat flux (J/m$^2$) \\
-m_e & Mass flux of evaporated water (kg/m$^2$) \\L
+m_e & Mass flux of evaporated water (kg/m$^2$) \\
+L & Latent heat of evaporation (J/kg)
 \end{conditions*}
 
 \subsubsection{Condensation ($J_d$)}
