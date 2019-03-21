@@ -57,7 +57,7 @@ classdef crop < handle
                 obj.type = type;
                 obj.Ac = Ac;
                 obj.model = model;
-                obj.tPlanted = model.date;
+                obj.tPlanted = 1;
                 
                 switch(obj.type)
                     case 'Wheat'
@@ -112,7 +112,8 @@ classdef crop < handle
         end
         
         function GDD = get.GDD(obj)
-            T = min((obj.model.trackTa*9/5)+32, (obj.Tcutoff*9/5)+32) - (9/5*obj.Tbase+32);
+            Ta = obj.model.trackTa(obj.tPlanted:end);
+            T = min(Ta, obj.Tcutoff) - obj.Tbase;
             T = T(T>0);
             GDD = max(trapz(T) / 24, 0);
         end
@@ -175,7 +176,10 @@ classdef crop < handle
         
         function step(obj)
             % Only continue if plant has emerged and not reached maturity
-            if obj.DVS == -1 || obj.DVS > 2
+            if obj.DVS == -1
+                return
+            elseif obj.DVS >= 2
+                obj.harvestAndReplant;
                 return
             end
             
@@ -235,6 +239,31 @@ classdef crop < handle
             % Leaves
             RSenL = rrsent*obj.LeafB;
             obj.LeafB = obj.LeafB + (PartL-RSenL*dt);
+            
+            if obj.StemB < 0 || obj.StorB < 0 || obj.RootB < 0 || obj.LeafB < 0
+                disp('Crop < 0');
+            end
+        end
+        
+        function harvestAndReplant(obj)
+            % Reset relevant variables
+            obj.tPlanted = max(obj.model.hours);
+            obj.POOL = 0;
+            obj.LeafB = 0;
+            obj.StorB = 0;
+            obj.StemB = 0;
+            obj.LeafB = 0;
+            obj.MaxStemB = 6;
+        end
+    end
+    
+    methods (Static)
+        function D = determineYearlyCropDemand(no_people, cropType)
+            caloriesPerM2 = 1000;
+            totalM2 = 2000 * 365.25 * no_people / caloriesPerM2;
+            kgPerM2 = refEQ.rand(0.2018,0.4035);
+            totalKG = totalM2/kgPerM2;
+            D = totalKG;
         end
     end
 end

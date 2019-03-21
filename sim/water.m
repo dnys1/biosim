@@ -61,7 +61,7 @@ classdef water < handle
             % crop irrigation/ET
             if ~isempty(m.Vi) && m.Vi ~= 0
                 obj.Vstore = obj.Vstore - m.Vi;
-                obj.Vcrop = obj.Vcrop + m.Vi;
+                obj.Vvapor = obj.Vvapor + m.Vi;
                 m.Vi = 0;
             end
             
@@ -92,13 +92,23 @@ classdef water < handle
             
             % Track amount of reject to track salt.
             % Not included in total amount of water in system
-            obj.Vreject = obj.Vreject + dVreject;
+            obj.Vreject = dVreject;
             
-            % Evaporate the reject water and transfer clean to storage
+            % Evaporate/distill the reject water and transfer clean to storage
             obj.Vstore = obj.Vstore + VRO;
             
             % Update storage height
             m.waterBlock.hw = obj.Vstore / m.waterBlock.Aw;
+            
+            % The amount actually evaporated cannot exceed
+            % the saturation capacity of the air
+            RHOvs = obj.model.RHOvs;
+            Vsat = RHOvs * obj.model.Volume / 1000;
+            if obj.Mvapor > Vsat
+                Vdew = obj.Vvapor - Vsat;
+                obj.Vstore = obj.Vstore + Vdew;
+                obj.Vvapor = obj.Vvapor - Vdew;
+            end
         end
         
         function V = get.V(obj)

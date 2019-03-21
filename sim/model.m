@@ -55,6 +55,10 @@ classdef model < handle
         % Water parameters that change each step
         dMv         % delta Mv i.e. change in vapor mass (kg)
         Vi          % irrigation needed for crops (m3)
+        
+        % Crop parameters for tracking calorie supply/demand
+        currentSupply       % Total amount of biomass available (kg)
+        currentHourlyDemand % Demand for biomass every hour (kg/hr)
     end
     
     properties (Constant)
@@ -85,6 +89,7 @@ classdef model < handle
         RHO         % Total moist air density (kg/m3)
         RHOa        % Dry air density (kg/m3)
         RHOv        % Water vapor density (kg/m3)
+        RHOvs       % Saturation vapor density (kg/m3)
         Ta_K        % Air temperature (K)
         To_K        % Outside air temperature (K)
         RH          % Current relative humidity
@@ -163,6 +168,10 @@ classdef model < handle
             RHOv = obj.W.Mvapor / obj.Volume;
         end
         
+        function RHOvs = get.RHOvs(obj)
+            RHOvs = refEQ.Pvs(obj.Ta_C) / (refEQ.Rv * obj.Ta_K);
+        end
+        
         function P = get.P(obj)
             P = obj.Pa + obj.Pv;
         end
@@ -201,6 +210,21 @@ classdef model < handle
         
         function WW_Q = get.WW_Q(obj)
             WW_Q = 0.15*obj.no_people;
+        end
+        
+        function stepCropConsumption(obj)
+            if isempty(obj.currentSupply)
+                obj.currentSupply = crop.determineYearlyCropDemand(obj.no_people, obj.cropBlock.type);
+            else
+                if obj.cropBlock.DVS > 2
+                    % Add current harvest to available supply            
+                    obj.currentSupply = [obj.currentSupply ...
+                        obj.currentSupply(end) + obj.cropBlock.StorB/1000 - obj.currentHourlyDemand];
+                else
+                    obj.currentSupply = [obj.currentSupply ...
+                        obj.currentSupply(end) - obj.currentHourlyDemand];
+                end
+            end
         end
         
         % These functions take too long to run!
@@ -247,8 +271,12 @@ classdef model < handle
 %             end
 %             obj.cropBlocks = [obj.cropBlocks wheatCrop];
             
-            % Create a treatment train
+            % Create crop parameters
             obj.cropBlock = crop(Ac,cropType.Wheat,obj);
+            obj.currentHourlyDemand = crop.determineYearlyCropDemand(obj.no_people,...
+                obj.cropBlock.type) / (365.25*24);
+            
+            % Create a treatment train
             obj.waterBlock = waterBody(Aw, obj.hw, 20);
             obj.sedBlock = sedimentBasin(63e-6,obj.WW_Q,obj);
             obj.wetlandBlock = wetland1(obj.WW_Q,obj.sedBlock.TSS,1,obj);
@@ -272,7 +300,7 @@ classdef model < handle
                 obj.hour = obj.hour + 1;
             end
             if isempty(obj.hours)
-                obj.hours = [1];
+                obj.hours = 1;
             else
                 obj.hours = [obj.hours max(obj.hours)+1];
             end
@@ -364,6 +392,7 @@ classdef model < handle
             output.Ta = obj.trackTa;
             output.Tw = obj.trackTw;
             
+            obj.stepCropConsumption;
             obj.stepTime;
         end
     end
@@ -394,7 +423,7 @@ classdef model < handle
             % Determine number of calories necessary
             calories = 2000 * 365.25 * no_people;
             % Determine area for number of calories
-            caloriesPerM2 = refEQ.rand(685,1370);
+            caloriesPerM2 = 1000;
             Ac = calories / caloriesPerM2;
         end
         

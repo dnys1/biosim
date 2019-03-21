@@ -77,9 +77,8 @@ classdef heat < handle
             else
                 RHOvs = refEQ.Pvs(obj.Ts_C) / (refEQ.Rv * obj.Ts_K);
             end
-            
-            x_s = RHOvs * obj.model.Volume / obj.model.M;
-            x = obj.model.W.Mvapor / obj.model.M;
+            x_s = RHOvs * obj.model.Volume / obj.model.Ma;
+            x = obj.model.W.Mvapor / obj.model.Ma;
             ae = (25 + 19*obj.wv) / 3600;
             dMv = obj.Aw * (x_s - x) * ae * obj.dt;
         end
