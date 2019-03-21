@@ -11,6 +11,15 @@ classdef water < handle
         Vsed        % Volume of water in the sediment basin (m3)
         Vreject     % Volume of water rejected from RO unit (m3)
         
+        % Temporary variables (valid for one time step only)
+        ET          % Crop evapotranspiration (m3)
+        WW          % Wastewater flow (m3)
+        evap        % Evaporated water (m3)
+        cond        % Condensated water (m3)
+        VRO         % RO flow (m3)
+        ROreject    % RO reject (m3)
+        dVwetland   % Exiting wetland (m3)
+        
         model       % Handle for main model
     end
     
@@ -44,15 +53,25 @@ classdef water < handle
         end
         
         function step(obj)
+            % Reset all temporary variables
+            obj.WW = 0; obj.ET = 0; obj.evap = 0; obj.cond = 0;
+            obj.ROreject = 0; obj.dVwetland = 0;
+            
             % Run once every hour
             m = obj.model;
             dt = 3600/m.dt;
             
             % wastewater flux
-            obj.Vstore = obj.Vstore - m.WW_Q/(24*dt);
+            obj.WW = m.WW_Q/(24*dt);
+            obj.Vstore = obj.Vstore - obj.WW;
             
             % waterBody heat exchange
             if ~isempty(m.dMv) && m.dMv ~=0
+                if m.dMv > 0
+                    obj.evap = obj.evap + m.dMv / 1000;
+                else
+                    obj.cond = obj.cond + m.dMv / 1000;
+                end
                 obj.Vvapor = obj.Vvapor + m.dMv/1000;
                 obj.Vstore = obj.Vstore - m.dMv/1000;
                 m.dMv = 0;
@@ -60,20 +79,21 @@ classdef water < handle
             
             % crop irrigation/ET
             if ~isempty(m.Vi) && m.Vi ~= 0
+                obj.ET = m.Vi;
                 obj.Vstore = obj.Vstore - m.Vi;
                 obj.Vvapor = obj.Vvapor + m.Vi;
                 m.Vi = 0;
             end
             
             % sedimentation basin
-            dVwetland = (m.wetlandBlock.qd*m.wetlandBlock.A)/(24*dt);
+            obj.dVwetland = (m.wetlandBlock.qd*m.wetlandBlock.A)/(24*dt);
             if obj.Vsed == 0
                 obj.Vsed = m.sedBlock.V;
                 obj.Vstore = obj.Vstore - m.sedBlock.V;
             else
-                obj.Vsed = obj.Vsed + m.WW_Q/(24*dt);
-                obj.Vsed = obj.Vsed - dVwetland;
-                obj.Vwetland = obj.Vwetland + dVwetland;
+                obj.Vsed = obj.Vsed + obj.WW;
+                obj.Vsed = obj.Vsed - obj.dVwetland;
+                obj.Vwetland = obj.Vwetland + obj.dVwetland;
             end
             
             % wetland
@@ -81,33 +101,41 @@ classdef water < handle
                 obj.Vwetland = m.wetlandBlock.Vw;
                 obj.Vstore = obj.Vstore - m.wetlandBlock.Vw;
             else
-                obj.Vwetland = obj.Vwetland - dVwetland;
+                obj.Vwetland = obj.Vwetland - obj.dVwetland;
             end
             
             % filtration treatment
             no_RO = ceil(mod(m.WW_Q/24, filterUnit.RO_min_flux));
-            VRO = max(m.WW_Q/24,filterUnit.RO_min_flux*no_RO)/dt;
-            obj.Vstore = obj.Vstore - max(VRO - dVwetland, 0);
-            dVreject = VRO * (1-0.75);
+            obj.VRO = max(m.WW_Q/24,filterUnit.RO_min_flux*no_RO)/dt;
+            obj.Vstore = obj.Vstore - max(obj.VRO - obj.dVwetland, 0);
+            recoveryEfficiency = 0.75;
+            obj.ROreject = obj.VRO * (1-recoveryEfficiency);
             
             % Track amount of reject to track salt.
             % Not included in total amount of water in system
-            obj.Vreject = dVreject;
+            obj.Vreject = obj.ROreject;
             
             % Evaporate/distill the reject water and transfer clean to storage
-            obj.Vstore = obj.Vstore + VRO;
+            obj.Vstore = obj.Vstore + obj.VRO;
             
             % Update storage height
             m.waterBlock.hw = obj.Vstore / m.waterBlock.Aw;
             
             % The amount actually evaporated cannot exceed
-            % the saturation capacity of the air
-            RHOvs = obj.model.RHOvs;
+            % the desired RH of the air
+            RHOvs = obj.model.RHOvs * obj.model.RHmax;
             Vsat = RHOvs * obj.model.Volume / 1000;
-            if obj.Mvapor > Vsat
+            if obj.Vvapor > Vsat
                 Vdew = obj.Vvapor - Vsat;
                 obj.Vstore = obj.Vstore + Vdew;
                 obj.Vvapor = obj.Vvapor - Vdew;
+                obj.cond = obj.cond + Vdew;
+                
+                % Remove heat from air due to condensation
+%                 Ld = refEQ.L(obj.model.Ta_C);
+%                 qd = Ld * Vdew * 1000;
+%                 obj.model.Ta_C = obj.model.Ta_C - qd/...
+%                     (obj.Mvapor*obj.model.cv + obj.model.Ma*obj.model.ca);
             end
         end
         
