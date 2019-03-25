@@ -24,6 +24,7 @@ classdef lightObj < handle
     
     properties (Dependent)
         Qperm2  % Heat per m2 (W/m2)
+        EnergyUsage % Total energy usage (kW)
     end
     
     methods
@@ -52,6 +53,10 @@ classdef lightObj < handle
             else
                 Qperm2 = 0;
             end
+        end
+        
+        function E = get.EnergyUsage(obj)
+            E = obj.Qperm2 * obj.A / 1000;
         end
     end
 end

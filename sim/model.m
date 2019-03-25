@@ -33,6 +33,14 @@ classdef model < handle
         trackRootB  % Array of rootB vals
         trackDVS    % Array of DVS vals
         
+        % Tracking of lighting energy vars
+        tracklLight
+        trackgLight
+        
+        % Tracking of treatment energy vars
+        trackRO
+        trackUV
+        
         hour        % Tracks the hour of the day
         day         % Tracks the day since starting
         date        % Tracks the actual date
@@ -389,6 +397,10 @@ classdef model < handle
             obj.trackRootB      = [obj.trackRootB obj.cropBlock.RootB];
             obj.trackStorB      = [obj.trackStorB obj.cropBlock.StorB];
             obj.trackETo        = [obj.trackETo obj.ETo];
+            obj.tracklLight     = [obj.tracklLight obj.lLight.EnergyUsage];
+            obj.trackgLight     = [obj.trackgLight obj.gLight.EnergyUsage];
+            obj.trackRO         = [obj.trackRO filterUnit.RO_P];
+            obj.trackUV         = [obj.trackUV filterUnit.UV_P];
             output.Ta = obj.trackTa;
             output.Tw = obj.trackTw;
             
