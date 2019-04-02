@@ -1,0 +1,78 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\numberwithin{equation}{section}
+
+\usepackage{subfiles}
+
+%% For bibliography
+\usepackage[backend=biber]{biblatex}
+\addbibresource{ref/heat.bib}
+\addbibresource{ref/crop.bib}
+\addbibresource{ref/treatment.bib}
+%% End bibliography
+
+%% From https://tex.stackexchange.com/questions/121262/defining-equation-variables-as-a-caption
+\usepackage{array,tabularx}
+
+\newenvironment{conditions*}
+  {\par\vspace{\abovedisplayskip}\noindent
+   \tabularx{\columnwidth}{>{$}l<{$} @{\ = } >{\raggedright\arraybackslash}X}}
+  {\endtabularx\par\vspace{\belowdisplayskip}}
+%% End insert
+
+%% For \degree symbol
+\usepackage{gensymb}
+%% End \degree
+
+%% For images
+\usepackage{graphicx}
+\graphicspath{ {./img/} }
+%% End images
+
+% For appendix
+\usepackage{appendix}
+% End appendix
+
+\title{BioSim}
+\author{Dillon Nys}
+\date{April 2019}
+
+\begin{document}
+
+% Begin Table of Contents
+\newpage
+\maketitle
+\tableofcontents
+% End Table of Contents
+
+% Begin Introduction
+\newpage
+\subfile{introduction}
+% End Introduction
+
+% Begin Methods section
+\newpage
+\part{Methods}
+\subfile{equations/heat}
+\subfile{equations/crop}
+\subfile{equations/treatment}
+\subfile{equations/water}
+% End Methods section
+
+% Begin Guide
+\newpage
+\subfile{guide}
+% End Guide
+
+% Begin Discussion
+\newpage
+\subfile{discussion}
+% End Discussion
+
+% Begin Bibliography
+\newpage
+\printbibliography[heading=bibintoc]
+% End Bibliography
+
+\end{document}
