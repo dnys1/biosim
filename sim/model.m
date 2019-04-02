@@ -40,6 +40,7 @@ classdef model < handle
         % Tracking of treatment energy vars
         trackRO
         trackUV
+        trackRejectEvap
         
         hour        % Tracks the hour of the day
         day         % Tracks the day since starting
@@ -401,6 +402,7 @@ classdef model < handle
             obj.trackgLight     = [obj.trackgLight obj.gLight.EnergyUsage];
             obj.trackRO         = [obj.trackRO filterUnit.RO_P];
             obj.trackUV         = [obj.trackUV filterUnit.UV_P];
+            obj.trackRejectEvap = [obj.trackRejectEvap refEQ.L(obj.waterBlock.Tw_C)*obj.W.Mreject/3600]; % convert kJ/hr to kW
             output.Ta = obj.trackTa;
             output.Tw = obj.trackTw;
             
