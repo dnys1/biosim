@@ -254,13 +254,9 @@ classdef crop < handle
     end
     
     methods (Static)
-        function D = determineYearlyCropDemand(no_people, cropType)
-            caloriesPerM2 = 1000;
-            totalM2 = 2000 * 365.25 * no_people / caloriesPerM2;
-%             kgPerM2 = refEQ.rand(0.2018,0.4035);
-            kgPerM2 = 0.3;
-            totalKG = totalM2/kgPerM2;
-            D = totalKG;
+        function D = determineDailyCropDemand(no_people, cropType)
+            caloriesPerKg = 3640;
+            D = 2000 * no_people / caloriesPerKg;
         end
     end
 end

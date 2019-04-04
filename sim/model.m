@@ -121,8 +121,8 @@ classdef model < handle
             
             if nargin > 0
                 % Initialize model
-                [At, Ac, Aw] = model.determineArea(no_people);
-                Area = At + Ac + Aw;
+                [At, Ac, Aw, Al] = model.determineArea(no_people);
+                Area = At + Ac + Aw + Al;
                 obj.Length = sqrt(Area);
                 obj.Width = Area / obj.Length;
                 obj.Height = 10;
@@ -223,7 +223,7 @@ classdef model < handle
         
         function stepCropConsumption(obj)
             if isempty(obj.currentSupply)
-                obj.currentSupply = crop.determineYearlyCropDemand(obj.no_people, obj.cropBlock.type);
+                obj.currentSupply = crop.determineDailyCropDemand(obj.no_people, obj.cropBlock.type)*90*1.1;
             else
                 if obj.cropBlock.DVS > 2
                     % Add current harvest to available supply            
@@ -282,8 +282,8 @@ classdef model < handle
             
             % Create crop parameters
             obj.cropBlock = crop(Ac,cropType.Wheat,obj);
-            obj.currentHourlyDemand = crop.determineYearlyCropDemand(obj.no_people,...
-                obj.cropBlock.type) / (365.25*24);
+            obj.currentHourlyDemand = crop.determineDailyCropDemand(obj.no_people,...
+                obj.cropBlock.type) / 24;
             
             % Create a treatment train
             obj.waterBlock = waterBody(Aw, obj.hw, 20);
@@ -412,10 +412,11 @@ classdef model < handle
     end
     
     methods (Static)
-        function [At, Ac, Aw] = determineArea(no_people)
+        function [At, Ac, Aw, Al] = determineArea(no_people)
             At = model.determineTreatmentArea(no_people);
             Ac = model.determineCropArea(no_people);
             Aw = model.determineWaterStorageArea(no_people);
+            Al = model.determineLivingArea(no_people);
         end
         
         function At = determineTreatmentArea(no_people)
@@ -434,15 +435,24 @@ classdef model < handle
         end
         
         function Ac = determineCropArea(no_people)
-            % Determine number of calories necessary
-            calories = 2000 * 365.25 * no_people;
+            % Determine number of calories necessary for one crop cycle
+            % One crop cycle ~ 90 days
+            calories = 2000 * 90 * no_people;
             % Determine area for number of calories
-            caloriesPerM2 = 1000;
+            caloriesPerM2 = 1700;
             Ac = calories / caloriesPerM2;
         end
         
         function Aw = determineWaterStorageArea(no_people)
-            Aw = no_people * 20 / model.hw;
+            Aw = no_people * 10 / model.hw;
+        end
+        
+        function Al = determineLivingArea(no_people)
+            % 5.62 m2 per person for sleeping =60 ft2
+			% 5.62 m2 per 3 people for bathing = 60 ft2
+            % 30 m2 per 8 people for living = 330 ft2
+            Al = no_people * 5.62 + ceil(no_people/3) * 5.62 + ...
+					ceil(no_people/8) * 30;
         end
     end
 end
