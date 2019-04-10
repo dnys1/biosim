@@ -42,6 +42,9 @@ classdef model < handle
         trackUV
         trackRejectEvap
         
+        % Tracking of water quality params (spatial)
+        trackTSS
+        
         hour        % Tracks the hour of the day
         day         % Tracks the day since starting
         date        % Tracks the actual date
@@ -298,6 +301,9 @@ classdef model < handle
             % Create necessary handlers & variables
             obj.H = heat(obj);
             obj.W = water(obj);
+            
+            % Setup treatment tracking variables
+            obj.trackTSS = [obj.WW_TSS_0 sum(obj.sedBlock.TSS) sum(obj.wetlandBlock.TSS)];
         end
         
         function stepTime(obj)

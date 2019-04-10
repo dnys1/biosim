@@ -17,7 +17,7 @@ RH = 0.5;
 dt = time.HOUR;
 
 % Length of simulation
-hours = 1:1:168*3;
+hours = 1:1:173;
 
 % Build and run the model
 m = model(no_people, P, Ta, To, RH, dt);
