@@ -3,13 +3,13 @@ Equations related to the transfer of heat.
 \begin{gather}
     Q = mc\Delta T \label{eq:heat_transfer} \\
     Q = m L
-    \label{eq:latent_heat}
 \end{gather}
 %% ASSUMPTIONS
 \subsection{Assumptions}
 Assumptions for this section are:
 \begin{itemize}
-    \item Complete and instantaneous mixing of fluids
+    \item Complete mixing of fluids within the model $\Delta t$ step (1 hour)
+    \item Thermodynamic equilibrium is reached within the model $\Delta t$ step
 \end{itemize}
 %% HEAT TRANSFER - WATER
 \subsection{Water}
@@ -94,7 +94,7 @@ u & Wind velocity at the surface (m/s)
 However, when the air which flows over the surface is cooler and the water and the heat exchange direction is reversed, convection must be estimated using the Nusselt number \cite{convection_air}:
 \begin{gather}
     J_c = h (T_s - T_\text{air}) \\
-    Nu = \frac{hL}{k} = \left(0.037\text{Re}^{4/5}-871\right)\text{Pr}^{1/3}
+    \text{Nu} = \frac{hL}{k} = \left(0.037\text{Re}^{4/5}-871\right)\text{Pr}^{1/3}
 \end{gather}
 where
 \begin{conditions*}

@@ -4,12 +4,15 @@
 \numberwithin{equation}{section}
 
 \usepackage{subfiles}
+\usepackage{hyperref}
 
 %% For bibliography
 \usepackage[backend=biber]{biblatex}
 \addbibresource{ref/heat.bib}
 \addbibresource{ref/crop.bib}
 \addbibresource{ref/treatment.bib}
+\addbibresource{ref/introduction.bib}
+\addbibresource{ref/discussion.bib}
 %% End bibliography
 
 %% From https://tex.stackexchange.com/questions/121262/defining-equation-variables-as-a-caption
@@ -34,6 +37,15 @@
 \usepackage{appendix}
 % End appendix
 
+% For subfigure env
+\usepackage{caption}
+\usepackage{subcaption}
+% End subfigure env
+
+% For wrapfig env
+\usepackage{wrapfig}
+% End wrapfig env
+
 \title{BioSim}
 \author{Dillon Nys}
 \date{April 2019}
@@ -53,7 +65,7 @@
 
 % Begin Methods section
 \newpage
-\part{Methods}
+\part{Model}
 \subfile{equations/heat}
 \subfile{equations/crop}
 \subfile{equations/treatment}
@@ -70,8 +82,12 @@
 \subfile{discussion}
 % End Discussion
 
-% Begin Bibliography
+% Begin Appendix
 \newpage
+\subfile{appendix}
+% End Appendix
+
+% Begin Bibliography
 \printbibliography[heading=bibintoc]
 % End Bibliography
 

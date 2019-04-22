@@ -1,4 +1,11 @@
 \section{Water Treatment}
+The following treatment train was chosen for regenerating water from human waste streams.
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.75\textwidth]{treatment_train}
+    \caption{Wastewater treatment train}
+    \label{fig:treatment_train}
+\end{figure}
 \subsection{Sedimentation}
 To model the sedimentation of particles in the pre-treatment basin, a simple set of equations is used \cite{principles}. To model the settling velocity of particles:
 \begin{align}
@@ -40,17 +47,17 @@ The fraction of particles removed for a specific diameter less than $D$, the fol
     \text{Fraction of particles removed} = \frac{v_s}{v_D}\,(v_s<v_D)
 \end{equation}
 \subsection{Wetlands Treatment}
-\subsubsection{Modeling Parameters}
-If not available from the literature, the following equation was used to model the wetland's hydraulic conductivity \cite{Ks_estimate}:
-\begin{equation}
-    K_s=0.24622\,[d_{10}^2\varepsilon^3/(1+\varepsilon)]^{0.7825}
-\end{equation}
-where
-\begin{conditions*}
-K_s & Saturated hydraulic conductivity (m/s) \\
-d_{10} & 10th-percentile particle size (mm) \\
-\varepsilon & Void fraction/porosity of bed
-\end{conditions*}
+%\subsubsection{Modeling Parameters}
+%If not available from the literature, the following equation was used to model the wetland's hydraulic conductivity \cite{Ks_estimate}:
+%\begin{equation}
+%    K_s=0.24622\,[d_{10}^2\varepsilon^3/(1+\varepsilon)]^{0.7825}
+%\end{equation}
+%where
+%\begin{conditions*}
+%K_s & Saturated hydraulic conductivity (m/s) \\
+%d_{10} & 10th-percentile particle size (mm) \\
+%\varepsilon & Void fraction/porosity of bed
+%\end{conditions*}
 \subsubsection{Green-Ampt Modeling}
 The Green-Ampt equation \cite{green_ampt} is used to model infiltration into a vertical constructed wetland. For a one-layer wetland, the following equation is used to calculate the time to saturate the wetland with or without ponding at the surface\footnote{Note: For consistency, $\Psi < 0$ and $h_0 \geq 0$. Thus, $\Delta h$ will always be $\geq 0$.}.
 \begin{gather}
@@ -75,17 +82,17 @@ where
     \Psi_f & Suction head of the wetting front (m)\footnote{This approximation is established in \cite{green_ampt}.} \\
     \phi & Porosity of the material
 \end{conditions*}
-For a two-layer system, the total time $t$ is calculated using the following equation \cite{green_ampt}:
-\begin{equation}
-\label{eq:t_2}
-    t = t_1 + \frac{\theta_{s,2}-\theta_{i,2}}{K_{s,2}}
-    \left[ z-z_1+\left(\frac{z_1K_{s,2}}{K_{s,1}}-z_1-\Delta h\right)\ln{\left(\frac{z+\Delta h}{z_1+\Delta h}\right)}\right]
-\end{equation}
-where 
-\begin{equation*}
-    \Delta_h = h_0 - \Psi_{f,2}
-\end{equation*}
-and values for $t_1$, $\theta_i$, and $\Psi_f$ are calculated using \eqref{eq:t_1}-\eqref{eq:Psi_f}.
+%For a two-layer system, the total time $t$ is calculated using the following equation \cite{green_ampt}:
+%\begin{equation}
+%\label{eq:t_2}
+%    t = t_1 + \frac{\theta_{s,2}-\theta_{i,2}}{K_{s,2}}
+%    \left[ z-z_1+\left(\frac{z_1K_{s,2}}{K_{s,1}}-z_1-\Delta h\right)\ln{\left(\frac{z+\Delta h}{z_1+\Delta h}\right)}\right]
+%\end{equation}
+%where 
+%\begin{equation*}
+%    \Delta_h = h_0 - \Psi_{f,2}
+%\end{equation*}
+%and values for $t_1$, $\theta_i$, and $\Psi_f$ are calculated using \eqref{eq:t_1}-\eqref{eq:Psi_f}.
 \subsection{Treatment Kinetics}
 %Using $t$ as an estimate for hydraulic residence time (HRT), the system can be modeled as an ideal plug-flow reactor for modeling degradation of COD, BOD, TSS, NH$_4$, and TP using rate constants derived from \cite{pilot} and the following equation:
 Kinetics are modeled using the $P-k-C*$ model of \cite{kadlec} with areal rate constants derived from \cite{kA}:
@@ -179,6 +186,7 @@ where
 \subsubsection{Head Loss}
 Clean bed head loss due to inertial and viscous forces can be estimated using the Ergun equation \cite{principles}:
 \begin{equation}
+\label{eq:ergun}
     h_L=\kappa_V\frac{(1-\varepsilon)^2}{\varepsilon^3}\frac{\mu Lv_F}{\rho_W gd^2} + \kappa_I \frac{1-\varepsilon}{\varepsilon^3}\frac{Lv_F^2}{gd}
 \end{equation}
 where
@@ -214,4 +222,4 @@ The main assumptions for the treatment wetlands are:
     \caption{Particle size distribution in raw wastewater}
     \label{tab:particle_size_dist}
 \end{table}
-In reality, none of the assumptions above would likely hold true and thus, this is a heavily idealized system used to model a crude approximation of treatment quality and hydraulic characteristics.
+In reality, none of the assumptions above would likely hold true and thus, this is a heavily idealized system used to model an approximation of treatment quality and hydraulic characteristics.
