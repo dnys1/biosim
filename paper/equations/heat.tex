@@ -30,7 +30,7 @@ J_e & Evaporation-condensation radiation flux (W/m$^2$)
 \end{conditions*}
 
 \subsubsection{Short-wave radiation ($J_{sn}$)}
-Short-wave radiation will be supplied to the water through overhead LED lights. Different lights will be available for growing and living spaces, each with different a light spectrum, energy requirement, and heat output.
+Short-wave radiation will be supplied to the water through overhead LED lights. Different lights will be available for growing and living spaces, each with a different light spectrum, energy requirement, and heat output.
 
 To calculate short-wave radiation:
 \begin{equation}
@@ -91,16 +91,20 @@ h_c & Convective heat transfer coefficient (W m$^{-2}$ K$^{-1}$) \\
 u & Wind velocity at the surface (m/s)
 \end{conditions*}
 
-However, when the air which flows over the surface is cooler and the water and the heat exchange direction is reversed, convection must be estimated using the Nusselt number \cite{convection_air}:
+However, when the air which flows over the surface is cooler and the water and the heat exchange direction is reversed, the convective heat transfer coefficient $h_c$ must be estimated using the Nusselt number \cite{convection_air}:
 \begin{gather}
-    J_c = h (T_s - T_\text{air}) \\
-    \text{Nu} = \frac{hL}{k} = \left(0.037\text{Re}^{4/5}-871\right)\text{Pr}^{1/3}
+    \text{Nu} = \frac{h_cL}{k} = \left(0.037\text{Re}^{4/5}-871\right)\text{Pr}^{1/3} \\
+    \text{Re} = \frac{\rho uL}{\mu} \\
+    \text{Pr} = \frac{\mu C_p}{k}
 \end{gather}
 where
 \begin{conditions*}
-    h & Convective heat transfer coeff. from air $\rightarrow$ water (W m$^{-2}$ K$^{-1}$) \\
+    h_c & Convective heat transfer coeff. from air $\rightarrow$ water (W m$^{-2}$ K$^{-1}$) \\
     L & Characteristic length of water surface (m) \\
     k & Thermal conductivity of water (m) \\
+    \rho & Density of water (kg/m$^3$) \\
+    \mu & Dynamic viscosity of water (kg/m$^3$) \\
+    C_p & Water isobaric heat capacity (J kg$^{-1}$ K$^{-1}$) \\
     \text{Nu} & Nusselt number (unitless) \\
     \text{Re} & Reynolds number (unitless) \\
     \text{Pr} & Prandtl number (unitless)
@@ -114,7 +118,7 @@ In order to calculate the heat transfer due to evaporation, the total mass of ev
 \end{gather}
 where
 \begin{conditions*}
-m_e & Mass of water evaporated (kg m$^{-2}$ s$^{-1}$) \\
+m_e & Mass flux of water evaporated (kg m$^{-2}$ s$^{-1}$) \\
 x & Actual humidity ratio (kg/kg) \\
 x_s & Saturation humidity ratio (kg/kg) \\
 a_e & Evaporation coefficient (kg m$^{-2}$ s$^{-1}$) \\
@@ -126,8 +130,8 @@ Then the total heat transfer can be calculated using the heat transfer formula \
 \end{equation}
 and by estimating the latent heat of evaporation of water \eqref{eq:latent_heat}.
 \begin{conditions*}
-J_e & Evaporative heat flux (J/m$^2$) \\
-m_e & Mass flux of evaporated water (kg/m$^2$) \\
+J_e & Evaporative heat flux (W/m$^2$) \\
+m_e & Mass flux of evaporated water (kg m$^{-2}$ s$^{-1}$) \\
 L & Latent heat of evaporation (J/kg)
 \end{conditions*}
 
@@ -139,6 +143,6 @@ Condensation is a function of the temperature relative to the dew point. Thus, c
 where
 \begin{conditions*}
 J_d & Condensation heat flux (W/m$^2$) \\
-m_d & Mass flux of dew deposited (kg m$^{-2}$ kg$^{-1}$) \\
+m_d & Mass flux of dew deposited (kg m$^{-2}$ s$^{-1}$) \\
 L & Latent heat of evaporation (J/kg)
 \end{conditions*}
